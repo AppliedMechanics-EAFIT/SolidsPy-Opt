@@ -1,0 +1,7 @@
+numpy
+scipy
+matplotlib
+easygui
+meshio==3.0
+tensorflow
+solidspy
