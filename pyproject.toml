@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools >= 68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "solidspy-opt"
+version = "0.1.0"
+description = "This package is made to perfome topology optimization of 2D solids"
+readme = "README.md"
+authors = [
+    {name = "Kevin Sepúlveda-García", email = "kssepulveg@eafit.edu.co"},
+    {name = "Nicolas Guarin-Zapata", email = "nguarinz@eafit.edu.co"}
+]
+license = {file = "LICENSE"}
+keywords = ["finite-elements", "scientific-computing", "deep learning", "topology", "optimization"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Education",
+    "Topic :: Scientific/Engineering",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "easygui",
+    "meshio==3.0",
+    "tensorflow",
+    "solidspy"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "coverage",
+    "pytest-cov",
+    "black",
+    "flake8",
+    "solidspy",
+    "numpy"
+]
+
+[project.urls]
+Homepage = "https://github.com/AppliedMechanics-EAFIT/SolidsPy-Opt"
+Repository = "https://github.com/AppliedMechanics-EAFIT/SolidsPy-Opt"
+BugTracker = "https://github.com/AppliedMechanics-EAFIT/SolidsPy-Opt/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
