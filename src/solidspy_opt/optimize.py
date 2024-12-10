@@ -2,10 +2,12 @@
 import matplotlib.pyplot as plt 
 from matplotlib import colors
 import numpy as np 
+from numpy.typing import NDArray
+from typing import List, Tuple
 from scipy.sparse.linalg import spsolve
 
-from .Utils.beams import * 
-from .Utils.solver import * 
+from Utils.beams import * 
+from Utils.solver import * 
 
 import solidspy.assemutil as ass 
 import solidspy.postprocesor as pos 
@@ -13,7 +15,17 @@ np.seterr(divide='ignore', invalid='ignore')
 
 # %% ESO stress based
 
-def ESO_stress(length, height, nx, ny, dirs, positions, niter, RR, ER, volfrac, plot=False):
+def ESO_stress(
+    nodes: NDArray[np.float64], 
+    els: NDArray[np.int_], 
+    mats: NDArray[np.float64], 
+    cons: NDArray[np.float64], 
+    niter: int, 
+    RR: float, 
+    ER: float, 
+    volfrac: float, 
+    plot: bool = False
+) -> None:
     """
     Performs Evolutionary Structural Optimization (ESO) based on stress for a beam structure.
 
@@ -49,7 +61,6 @@ def ESO_stress(length, height, nx, ny, dirs, positions, niter, RR, ER, volfrac, 
     nodes: ndarray
         The optimized nodes of the structure.
     """
-    nodes, mats, els, loads, BC = beam(L=length, H=height, nx=nx, ny=ny, dirs=dirs, positions=positions, n=1)
     elsI = np.copy(els)
 
     # System assembly
@@ -62,7 +73,7 @@ def ESO_stress(length, height, nx, ny, dirs, positions, niter, RR, ER, volfrac, 
     UCI = pos.complete_disp(IBC, nodes, disp)
     E_nodesI, S_nodesI = pos.strain_nodes(nodes, els, mats[:,:2], UCI)
 
-    V_opt = volume(els, length, height, nx, ny).sum() * volfrac # Optimal volume
+    # V_opt = volume(els, length, height, nx, ny).sum() * volfrac # TODO: Create a function that compute the vol of each element
 
     ELS = None
     for _ in range(niter):
@@ -70,7 +81,6 @@ def ESO_stress(length, height, nx, ny, dirs, positions, niter, RR, ER, volfrac, 
 
         # Check equilibrium
         if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or volume(els, length, height, nx, ny).sum() < V_opt: 
-            print('hollaa')
             break
 
         ELS = els
@@ -110,6 +120,31 @@ def ESO_stress(length, height, nx, ny, dirs, positions, niter, RR, ER, volfrac, 
 
     return ELS, nodes
 
+els, nodes = ESO_stress(
+    length=60, 
+    height=60, 
+    nx=60, 
+    ny=60, 
+    dirs=np.array([[0, -1]]), 
+    positions=np.array([[15, 1]]), 
+    niter=50, 
+    RR=0.005, 
+    ER=0.05, 
+    volfrac=0.5, 
+    plot=True
+)
+
+# %%
+nodes, mats, els, loads, BC = beam(
+    L=60, 
+    H=60, 
+    nx=60, 
+    ny=60, 
+    dirs=np.array([[0, -1]]), 
+    positions=np.array([[15, 1]]), 
+    n=1)
+print(nodes)
+print(els)
 
 # %% Eso stiff based
 
