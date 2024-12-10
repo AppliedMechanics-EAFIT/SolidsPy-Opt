@@ -99,13 +99,31 @@ jobs:
           git add .
           git commit -m "Update version to ${{ env.VERSION }}" || echo "No changes to commit"
 
-      - name: Push changes (Force)
-        uses: ad-m/github-push-action@v0.8.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: develop
-          directory: .
-          force: true
+      - name: Debug Repository Access
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
+        run: |
+          echo "Checking repository access"
+          git remote -v
+          git config -l
+          whoami
+
+      - name: Push changes alternative
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git remote set-url origin https://${{ secrets.TOKEN_GITHUB }}@github.com/kssgarcia/test-solidspy-opt.git
+          git push origin develop
+
+      # - name: Push changes (Force)
+      #   uses: ad-m/github-push-action@v0.8.0
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     branch: develop
+      #     directory: .
+      #     force: true
 
       # Build and Publish Steps
       - name: Set up Python
