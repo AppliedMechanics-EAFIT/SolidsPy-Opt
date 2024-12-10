@@ -114,7 +114,7 @@ jobs:
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git remote set-url origin https://${{ secrets.TOKEN_GITHUB }}@github.com/kssgarcia/test-solidspy-opt.git
+          git remote set-url origin https://${{ secrets.TOKEN_GITHUB }}@github.com/kssgarcia/solidspy-opt-test.git
           git push origin develop
 
       # - name: Push changes (Force)
