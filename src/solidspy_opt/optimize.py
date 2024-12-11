@@ -1,16 +1,19 @@
 # %%
+%matplotlib widget
 import matplotlib.pyplot as plt 
 from matplotlib import colors
 import numpy as np 
 from numpy.typing import NDArray
-from typing import List, Tuple
+from typing import List, Tuple, AnyStr
 from scipy.sparse.linalg import spsolve
 
 from Utils.beams import * 
 from Utils.solver import * 
+from Utils.volumes import * 
 
 import solidspy.assemutil as ass 
 import solidspy.postprocesor as pos 
+import solidspy.uelutil as uel 
 np.seterr(divide='ignore', invalid='ignore')
 
 # %% ESO stress based
@@ -19,53 +22,104 @@ def ESO_stress(
     nodes: NDArray[np.float64], 
     els: NDArray[np.int_], 
     mats: NDArray[np.float64], 
-    cons: NDArray[np.float64], 
+    loads: NDArray[np.float64], 
+    idx_BC: NDArray[np.float64], 
     niter: int, 
     RR: float, 
     ER: float, 
     volfrac: float, 
-    plot: bool = False
+    plot: bool = False,
+    dim_problem: int = 2,
+    nnodes: int = 4
 ) -> None:
     """
-    Performs Evolutionary Structural Optimization (ESO) based on stress for a beam structure.
+    Performs Evolutionary Structural Optimization (ESO) based on stress for a 3D structure.
 
     Parameters
     ----------
-    length : float
-        The length of the beam.
-    height : float
-        The height of the beam.
-    nx : int
-        The number of elements in the x direction.
-    ny : int
-        The number of elements in the y direction.
-    dirs : list
-        List of directions.
-    positions : list
-        List of positions.
+    nodes : ndarray
+        Array of node coordinates and boundary conditions with the format 
+        [node number, x, y, z, BC], where BC indicates boundary conditions.
+    els : ndarray
+        Array of elements with the format [element number, material, node 1, node 2, ...].
+    mats : ndarray
+        Array of material properties with the format [E, nu, rho], where:
+        - E is the Young's modulus,
+        - nu is the Poisson's ratio,
+        - rho is the density.
+    loads : ndarray
+        Array of elements with the format [element number, X load magnitud, Y load magnitud, Z load magnitud].
+    idx_BC : ndarray
+        Array of node indices with boundary conditions applied.
     niter : int
-        The number of iterations for the ESO process.
+        Number of iterations for the ESO process.
     RR : float
-        The relative stress threshold for removing elements.
+        Initial relative stress threshold for removing elements.
     ER : float
-        The increment of RR for each iteration.
+        Increment of the relative stress threshold (RR) for each iteration.
     volfrac : float
-        The volume fraction for the optimal structure.
+        Target volume fraction for the optimized structure, expressed as a fraction of the initial volume.
     plot : bool, optional
-        If True, plot the initial and optimized mesh. Defaults to False.
+        If True, plot the initial and optimized meshes. Defaults to False.
+    dim_problem : int, optional
+        Dimension of the problem (2 for 2D, 3 for 3D). Default is 2.
+    nnodes : int, optional
+        Number of nodes per element. For 2D problems it can be 3 or 4 and for 3D problems 4 or 8. Default is 4.
 
     Returns
     -------
-    ELS: ndarray
-        The optimized elements of the structure.
-    nodes: ndarray
-        The optimized nodes of the structure.
+    ELS : ndarray
+        Array of the optimized elements after the ESO process.
+    nodes : ndarray
+        Array of the optimized nodes after the ESO process.
+
+    Notes
+    -----
+    - This function performs structural optimization by iteratively removing elements with low relative stress.
+    - The relative stress threshold (RR) increases in each iteration to progressively refine the structure.
+    - The optimization stops either after reaching the specified number of iterations or if the target volume fraction is achieved.
+
+    Process
+    -------
+    1. Assemble the global stiffness matrix and load vector.
+    2. Solve the linear system to compute nodal displacements.
+    3. Calculate element stresses and strains.
+    4. Compute the von Mises stress for each element and identify elements to remove.
+    5. Update the structure by removing selected elements and their associated nodes.
+    6. Repeat until the specified number of iterations or target volume fraction is reached.
+
+    Visualization
+    -------------
+    If `plot` is True, the function will generate:
+    - A plot of the initial and optimized structures showing displacements, strains, and stresses.
+    - A filled contour plot of the final optimized mesh.
+
+    Example
+    -------
+    >>> optimized_els, optimized_nodes = ESO_stress(
+    ...     nodes, els, mats, idx_BC, niter=10, RR=0.8, ER=0.05, volfrac=0.5, plot=True
+    ... )
     """
+    assert dim_problem in [2, 3], "dim_problem must be either 2 (for 2D) or 3 (for 3D)"
+    assert nnodes in [3, 4, 8], "nnodes must be either 3, 4 (for 2D) or 4, 8 (for 3D)"
+
+    uel_func = None
+    if dim_problem == 2:
+        if nnodes == 3:
+            uel_func = uel.elast_tri3
+        else:
+            uel_func = uel.elast_quad4
+    elif dim_problem == 3:
+        if nnodes == 4:
+            uel_func = uel.elast_tet4
+        else:
+            uel_func = uel.elast_hex8
+
     elsI = np.copy(els)
 
     # System assembly
-    assem_op, IBC, neq = ass.DME(nodes[:, -2:], els, ndof_el_max=8)
-    stiff_mat, _ = ass.assembler(els, mats, nodes[:, :3], neq, assem_op)
+    assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+    stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
     rhs_vec = ass.loadasem(loads, IBC, neq)
 
     # System solution
@@ -73,21 +127,21 @@ def ESO_stress(
     UCI = pos.complete_disp(IBC, nodes, disp)
     E_nodesI, S_nodesI = pos.strain_nodes(nodes, els, mats[:,:2], UCI)
 
-    # V_opt = volume(els, length, height, nx, ny).sum() * volfrac # TODO: Create a function that compute the vol of each element
+    V_opt = calculate_mesh_area(nodes, els) * volfrac
 
     ELS = None
     for _ in range(niter):
         print("Number of elements: {}".format(els.shape[0]))
 
         # Check equilibrium
-        if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or volume(els, length, height, nx, ny).sum() < V_opt: 
+        if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or calculate_mesh_area(nodes, els) < V_opt: 
             break
 
         ELS = els
         
         # System assembly
-        assem_op, IBC, neq = ass.DME(nodes[:, -2:], els, ndof_el_max=8)
-        stiff_mat, _ = ass.assembler(els, mats, nodes[:, :3], neq, assem_op)
+        assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+        stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
         rhs_vec = ass.loadasem(loads, IBC, neq)
 
         # System solution
@@ -101,7 +155,7 @@ def ESO_stress(
         # Remove/add elements
         RR_el = vons/vons.max() # Relative stress
         mask_del = RR_el < RR # Mask for elements to be deleted
-        mask_els = protect_elsESO(els, loads, BC) # Mask of elements to do not remove
+        mask_els = protect_elsESO(els, loads, idx_BC) # Mask of elements to do not remove
         mask_del *= mask_els  
         els = np.delete(els, mask_del, 0) # Delete elements
         del_nodeESO(nodes, els) # Remove nodes
@@ -120,22 +174,82 @@ def ESO_stress(
 
     return ELS, nodes
 
-els, nodes = ESO_stress(
-    length=60, 
-    height=60, 
-    nx=60, 
-    ny=60, 
-    dirs=np.array([[0, -1]]), 
-    positions=np.array([[15, 1]]), 
-    niter=50, 
-    RR=0.005, 
-    ER=0.05, 
-    volfrac=0.5, 
-    plot=True
+# %%
+# Define load directions and positions
+load_directions = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])  # [Fx, Fy, Fz] for each load
+load_positions = np.array([[5, 5, 9], [1, 1, 9], [8, 8, 9]])     # [x_idx, y_idx, z_idx] for each load
+
+# Call the function
+nodes, mats, els, loads, idx_BC = beam_3d(
+    L=10, 
+    H=10, 
+    W=10, 
+    E=206.8e9, 
+    v=0.28, 
+    nx=10, 
+    ny=10, 
+    nz=10, 
+    dirs=load_directions, 
+    positions=load_positions
 )
 
+# Example output handling
+print("Nodes shape:", nodes.shape)
+print("Materials shape:", mats.shape)
+print("Elements shape:", els.shape)
+print("Loads shape:", loads.shape)
+print(els[0,3:])
+
+# System assembly
+assem_op, IBC, neq = ass.DME(nodes[:, -3:], els, ndof_node=3, ndof_el_max=8*3)
+stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-3], neq, assem_op, uel=uel.elast_hex8)
+rhs_vec = ass.loadasem(loads, IBC, neq)
 # %%
-nodes, mats, els, loads, BC = beam(
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
+
+def plot_3d_mesh(nodes, els, loads=None):
+    # Extract node coordinates
+    node_coords = nodes[:, 1:4]  # x, y, z
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    for node in nodes:
+        is_BC = np.any(node[-3:] == -1)
+        color = 'blue'
+        if is_BC:
+            color = 'red'
+        elif np.any(loads[:,0] == node[0]):
+            color = 'green'
+        ax.scatter(node[1], node[2], node[3], color=color)
+
+    # # Plot the elements
+    # for el in els:
+    #     node_indices = el
+    #     element_coords = node_coords[node_indices]
+    #     # Connect nodes of the element
+    #     lines = [[element_coords[i], element_coords[j]] for i in range(len(node_indices)) for j in range(i + 1, len(node_indices))]
+    #     ax.add_collection3d(Line3DCollection(lines, colors='r', linewidths=0.5, alpha=0.7))
+
+    # # Plot loads if available
+    # if loads is not None:
+    #     for load in loads:
+    #         node_index = load[0].astype(int)
+    #         start = node_coords[node_index]
+    #         load_vector = load[1:4]
+    #         ax.quiver(start[0], start[1], start[2], load_vector[0], load_vector[1], load_vector[2],
+    #                   color='g', label='Loads' if 'Loads' not in ax.get_legend_handles_labels()[1] else "", arrow_length_ratio=0.1)
+
+    # Label the axes
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    plt.show()
+
+# Plot the mesh
+plot_3d_mesh(nodes, els, loads)
+
+# %%
+
+nodes, mats, els, loads, idx_BC = beam(
     L=60, 
     H=60, 
     nx=60, 
@@ -143,48 +257,99 @@ nodes, mats, els, loads, BC = beam(
     dirs=np.array([[0, -1]]), 
     positions=np.array([[15, 1]]), 
     n=1)
-print(nodes)
-print(els)
+
+print(nodes.shape)
+
+# %%
+els, nodes = ESO_stress(
+    nodes=nodes, 
+    els=els, 
+    mats=mats, 
+    loads=loads, 
+    idx_BC=idx_BC, 
+    niter=200, 
+    RR=0.005, 
+    ER=0.05, 
+    volfrac=0.5, 
+    plot=True,
+    dim_problem=2,
+    nnodes=4)
 
 # %% Eso stiff based
 
-def ESO_stiff(length, height, nx, ny, dirs, positions, niter, RR, ER, volfrac, plot=False):
+def ESO_stiff(
+    nodes: NDArray[np.float64], 
+    els: NDArray[np.int_], 
+    mats: NDArray[np.float64], 
+    idx_BC: NDArray[np.float64], 
+    niter: int, 
+    RR: float, 
+    ER: float, 
+    volfrac: float, 
+    plot: bool = False
+) -> None:
     """
     Performs Evolutionary Structural Optimization (ESO) based on stiff for a beam structure.
 
     Parameters
     ----------
-    length : float
-        The length of the beam.
-    height : float
-        The height of the beam.
-    nx : int
-        The number of elements in the x direction.
-    ny : int
-        The number of elements in the y direction.
-    dirs : list
-        List of directions.
-    positions : list
-        List of positions.
+    nodes : ndarray
+        Array of node coordinates and boundary conditions with the format 
+        [node number, x, y, z, BC], where BC indicates boundary conditions.
+    els : ndarray
+        Array of elements with the format [element number, material, node 1, node 2, ...].
+    mats : ndarray
+        Array of material properties with the format [E, nu, rho], where:
+        - E is the Young's modulus,
+        - nu is the Poisson's ratio,
+        - rho is the density.
+    idx_BC : ndarray
+        Array of node indices with boundary conditions applied.
     niter : int
-        The number of iterations for the ESO process.
+        Number of iterations for the ESO process.
     RR : float
-        The relative stress threshold for removing elements.
+        Initial relative stress threshold for removing elements.
     ER : float
-        The increment of RR for each iteration.
+        Increment of the relative stress threshold (RR) for each iteration.
     volfrac : float
-        The volume fraction for the optimal structure.
+        Target volume fraction for the optimized structure, expressed as a fraction of the initial volume.
     plot : bool, optional
-        If True, plot the initial and optimized mesh. Defaults to False.
+        If True, plot the initial and optimized meshes. Defaults to False.
 
     Returns
     -------
-    ELS: ndarray
-        The optimized elements of the structure.
-    nodes: ndarray
-        The optimized nodes of the structure.
+    ELS : ndarray
+        Array of the optimized elements after the ESO process.
+    nodes : ndarray
+        Array of the optimized nodes after the ESO process.
+
+    Notes
+    -----
+    - This function performs structural optimization by iteratively removing elements with low relative stress.
+    - The relative stress threshold (RR) increases in each iteration to progressively refine the structure.
+    - The optimization stops either after reaching the specified number of iterations or if the target volume fraction is achieved.
+
+    Process
+    -------
+    1. Assemble the global stiffness matrix and load vector.
+    2. Solve the linear system to compute nodal displacements.
+    3. Calculate element stresses and strains.
+    4. Compute the von Mises stress for each element and identify elements to remove.
+    5. Update the structure by removing selected elements and their associated nodes.
+    6. Repeat until the specified number of iterations or target volume fraction is reached.
+
+    Visualization
+    -------------
+    If `plot` is True, the function will generate:
+    - A plot of the initial and optimized structures showing displacements, strains, and stresses.
+    - A filled contour plot of the final optimized mesh.
+
+    Example
+    -------
+    >>> optimized_els, optimized_nodes = ESO_stiff(
+    ...     nodes, els, mats, idx_BC, niter=10, RR=0.8, ER=0.05, volfrac=0.5, plot=True
+    ... )
     """
-    nodes, mats, els, loads, BC = beam(L=length, H=height, nx=nx, ny=ny, dirs=dirs, positions=positions, n=1)
     elsI= np.copy(els)
 
     # System assembly
@@ -200,11 +365,11 @@ def ESO_stiff(length, height, nx, ny, dirs, positions, niter, RR, ER, volfrac, p
     niter = 200
     RR = 0.005 # Initial removal ratio
     ER = 0.05 # Removal ratio increment
-    V_opt = volume(els, length, height, nx, ny).sum() * volfrac # Optimal volume
+    V_opt = calculate_mesh_area(nodes, els) * volfrac
     ELS = None
     for _ in range(niter):
         # Check equilibrium
-        if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or volume(els, length, height, nx, ny).sum() < V_opt: 
+        if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or calculate_mesh_area(nodes, els) < V_opt: 
             break # Check equilibrium/volume and stop if not
         
         # System assembly
@@ -222,7 +387,7 @@ def ESO_stiff(length, height, nx, ny, dirs, positions, niter, RR, ER, volfrac, p
         # Compute Sensitivity number
         sensi_number = sensitivity_elsESO(nodes, mats, els, UC) # Sensitivity number
         mask_del = sensi_number < RR # Mask of elements to be removed
-        mask_els = protect_elsESO(els, loads, BC) # Mask of elements to do not remove
+        mask_els = protect_elsESO(els, loads, idx_BC) # Mask of elements to do not remove
         mask_del *= mask_els # Mask of elements to be removed and not protected
         ELS = els # Save last iteration elements
         
@@ -247,43 +412,81 @@ def ESO_stiff(length, height, nx, ny, dirs, positions, niter, RR, ER, volfrac, p
 
 # %% BESO
 
-def BESO(length, height, nx, ny, dirs, positions, niter, t, ER, volfrac, plot=False):
+def BESO(
+    nodes: NDArray[np.float64], 
+    els: NDArray[np.int_], 
+    mats: NDArray[np.float64], 
+    idx_BC: NDArray[np.float64], 
+    niter: int, 
+    t: float, 
+    ER: float, 
+    volfrac: float, 
+    plot: bool = False
+) -> None:
     """
-    Performs Evolutionary Structural Optimization (ESO) based on stiff for a beam structure.
+    Performs Bi-directional Evolutionary Structural Optimization (BESO) for a 3D structure.
 
     Parameters
     ----------
-    length : float
-        The length of the beam.
-    height : float
-        The height of the beam.
-    nx : int
-        The number of elements in the x direction.
-    ny : int
-        The number of elements in the y direction.
-    dirs : list
-        List of directions.
-    positions : list
-        List of positions.
+    nodes : ndarray
+        Array of node coordinates and boundary conditions with the format 
+        [node number, x, y, z, BC], where BC indicates boundary conditions.
+    els : ndarray
+        Array of elements with the format [element number, material, node 1, node 2, ...].
+    mats : ndarray
+        Array of material properties with the format [E, nu, rho], where:
+        - E is the Young's modulus,
+        - nu is the Poisson's ratio,
+        - rho is the density.
+    idx_BC : ndarray
+        Array of node indices with boundary conditions applied.
     niter : int
-        The number of iterations for the ESO process.
+        Number of iterations for the BESO process.
     t : float
-        Threshold for error.
+        Target stress ratio for adding or removing elements.
     ER : float
-        The increment of RR for each iteration.
+        Increment of the stress ratio (t) for each iteration.
     volfrac : float
-        The volume fraction for the optimal structure.
+        Target volume fraction for the optimized structure, expressed as a fraction of the initial volume.
     plot : bool, optional
-        If True, plot the initial and optimized mesh. Defaults to False.
+        If True, plot the initial and optimized meshes. Defaults to False.
 
     Returns
     -------
-    ELS: ndarray
-        The optimized elements of the structure.
-    nodes: ndarray
-        The optimized nodes of the structure.
+    ELS : ndarray
+        Array of the optimized elements after the BESO process.
+    nodes : ndarray
+        Array of the optimized nodes after the BESO process.
+
+    Notes
+    -----
+    - This function performs structural optimization by iteratively adding or removing elements based on stress ratios.
+    - The stress ratio (t) adjusts in each iteration to refine the structure, achieving a balance between material addition and removal.
+    - The optimization stops either after reaching the specified number of iterations or if the target volume fraction is achieved.
+
+    Process
+    -------
+    1. Assemble the global stiffness matrix and load vector.
+    2. Solve the linear system to compute nodal displacements.
+    3. Calculate element stresses and strains.
+    4. Compute the von Mises stress for each element and identify elements to add or remove.
+    5. Update the structure by modifying the elements and their associated nodes.
+    6. Repeat until the specified number of iterations or target volume fraction is reached.
+
+    Visualization
+    -------------
+    If `plot` is True, the function will generate:
+    - A plot of the initial and optimized structures showing displacements, strains, and stresses.
+    - A filled contour plot of the final optimized mesh.
+
+    Example
+    -------
+    >>> optimized_els, optimized_nodes = BESO(
+    ...     nodes, els, mats, idx_BC, niter=10, t=0.8, ER=0.05, volfrac=0.5, plot=True
+    ... )
+
     """
-    nodes, mats, els, loads, BC = beam(L=length, H=height, nx=nx, ny=ny, dirs=dirs, positions=positions, n=1)
+
     elsI = np.copy(els)
 
     # System assembly
@@ -300,8 +503,7 @@ def BESO(length, height, nx, ny, dirs, positions, niter, t, ER, volfrac, plot=Fa
     adj_nodes = adjacency_nodes(nodes, els) # Adjacency nodes
     centers = center_els(nodes, els) # Centers of elements
 
-    Vi = volume(els, length, height, nx, ny) # Initial volume
-    V_opt = Vi.sum() * volfrac # Optimal volume
+    V_opt = calculate_mesh_area(nodes, els) * volfrac # Optimal volume
 
     # Initialize variables.
     ELS = None
@@ -315,10 +517,10 @@ def BESO(length, height, nx, ny, dirs, positions, niter, t, ER, volfrac, plot=Fa
 
         # Calculate the optimal design array elements
         els_del = els[mask].copy() # Elements to be removed
-        V = Vi[mask].sum() # Volume of the structure
+        V = calculate_mesh_area(nodes, els_del) # Volume of the structure
 
         # Check equilibrium
-        if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or volume(els, length, height, nx, ny).sum() < V_opt: 
+        if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or calculate_mesh_area(nodes, els) < V_opt: 
             break
 
         # Storage the solution
@@ -361,9 +563,9 @@ def BESO(length, height, nx, ny, dirs, positions, niter, t, ER, volfrac, plot=Fa
 
         # Remove/add elements
         mask = sensi_number > alpha_del # Mask of elements to be removed
-        mask_els = protect_els(els[np.invert(mask)], els.shape[0], loads, BC) # Mask of elements to be protected
+        mask_els = protect_els(els[np.invert(mask)], els.shape[0], loads, idx_BC) # Mask of elements to be protected
         mask = np.bitwise_or(mask, mask_els) 
-        del_node(nodes, els[mask], loads, BC) # Delete nodes
+        del_node(nodes, els[mask], loads, idx_BC) # Delete nodes
 
         # Calculate the strain energy and storage it 
         C = 0.5*rhs_vec.T@disp
@@ -392,41 +594,77 @@ def BESO(length, height, nx, ny, dirs, positions, niter, t, ER, volfrac, plot=Fa
 
 # %% SIMP
 
-def SIMP(length, height, nx, ny, dirs, positions, niter, penal, plot=False):
+def SIMP(
+    nodes: NDArray[np.float64], 
+    els: NDArray[np.int_], 
+    mats: NDArray[np.float64], 
+    niter: int, 
+    penal: float, 
+    volfrac: float, 
+    plot: bool = False
+) -> None:
     """
-    Performs Solid Isotropic Material with Penalization (SIMP) for topology optimization.
+    Performs Structural Optimization using the Solid Isotropic Material with Penalization (SIMP) method for a 3D structure.
 
     Parameters
     ----------
-    length : float
-        The length of the beam.
-    height : float
-        The height of the beam.
-    nx : int
-        The number of elements in the x direction.
-    ny : int
-        The number of elements in the y direction.
-    dirs : list
-        List of directions.
-    positions : list
-        List of positions.
+    nodes : ndarray
+        Array of node coordinates and boundary conditions with the format 
+        [node number, x, y, z, BC], where BC indicates boundary conditions.
+    els : ndarray
+        Array of elements with the format [element number, material, node 1, node 2, ...].
+    mats : ndarray
+        Array of material properties with the format [E, nu, rho], where:
+        - E is the Young's modulus,
+        - nu is the Poisson's ratio,
+        - rho is the density.
     niter : int
-        The number of iterations for the SIMP process.
+        Number of iterations for the SIMP process.
     penal : float
-        Penalization factor used in the SIMP method.
+        Penalization factor used to enforce material stiffness in intermediate densities.
+    volfrac : float
+        Target volume fraction for the optimized structure, expressed as a fraction of the initial volume.
     plot : bool, optional
-        If True, plot the initial and optimized mesh. Defaults to False.
+        If True, plot the initial and optimized meshes. Defaults to False.
 
     Returns
     -------
-    rho: ndarray
-        The optimized density distribution of the structure.
+    ELS : ndarray
+        Array of the optimized elements after the SIMP process.
+    nodes : ndarray
+        Array of the optimized nodes after the SIMP process.
+
+    Notes
+    -----
+    - The SIMP method iteratively updates element densities to optimize the material distribution.
+    - Element stiffness is penalized for intermediate densities to encourage a binary (solid or void) material distribution.
+    - The optimization stops after reaching the specified number of iterations or if the target volume fraction is achieved.
+
+    Process
+    -------
+    1. Initialize element densities to satisfy the target volume fraction.
+    2. Assemble the global stiffness matrix and load vector.
+    3. Solve the linear system to compute nodal displacements.
+    4. Compute element stiffnesses and objective function (e.g., compliance).
+    5. Update element densities using the Optimality Criteria method.
+    6. Repeat until the specified number of iterations or target volume fraction is reached.
+
+    Visualization
+    -------------
+    If `plot` is True, the function will generate:
+    - A plot of the initial and optimized structures showing displacements, strains, and stresses.
+    - A filled contour plot of the final optimized mesh.
+
+    Example
+    -------
+    >>> optimized_els, optimized_nodes = SIMP(
+    ...     nodes, els, mats, niter=50, penal=3.0, volfrac=0.5, plot=True
+    ... )
+
     """
     # Initialize variables
     Emin=1e-9 # Minimum young modulus of the material
     Emax=1.0 # Maximum young modulus of the material
-
-    nodes, mats, els, loads, _ = beam(L=length, H=height, nx=nx, ny=ny, dirs=dirs, positions=positions, n=1)
 
     # Initialize the design variables
     change = 10 # Change in the design variable
