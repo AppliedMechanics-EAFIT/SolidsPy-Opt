@@ -176,19 +176,19 @@ def ESO_stress(
 
 # %%
 # Define load directions and positions
-load_directions = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])  # [Fx, Fy, Fz] for each load
-load_positions = np.array([[5, 5, 9], [1, 1, 9], [8, 8, 9]])     # [x_idx, y_idx, z_idx] for each load
+load_directions = np.array([[0, 1, 0]])  # [Fx, Fy, Fz] for each load
+load_positions = np.array([[0, 0, 1]])     # [x_idx, y_idx, z_idx] for each load
 
 # Call the function
 nodes, mats, els, loads, idx_BC = beam_3d(
-    L=10, 
-    H=10, 
-    W=10, 
+    L=1, 
+    H=1, 
+    W=1, 
     E=206.8e9, 
     v=0.28, 
-    nx=10, 
-    ny=10, 
-    nz=10, 
+    nx=1, 
+    ny=1, 
+    nz=1, 
     dirs=load_directions, 
     positions=load_positions
 )
@@ -198,12 +198,14 @@ print("Nodes shape:", nodes.shape)
 print("Materials shape:", mats.shape)
 print("Elements shape:", els.shape)
 print("Loads shape:", loads.shape)
-print(els[0,3:])
+print(nodes)
+print(loads)
+print(els)
 
 # System assembly
 assem_op, IBC, neq = ass.DME(nodes[:, -3:], els, ndof_node=3, ndof_el_max=8*3)
 stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-3], neq, assem_op, uel=uel.elast_hex8)
-rhs_vec = ass.loadasem(loads, IBC, neq)
+# rhs_vec = ass.loadasem(loads, IBC, neq)
 # %%
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
@@ -213,6 +215,7 @@ def plot_3d_mesh(nodes, els, loads=None):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     for node in nodes:
+        ax.text(node[1], node[2], node[3], f'{int(node[0])}', color='black')
         is_BC = np.any(node[-3:] == -1)
         color = 'blue'
         if is_BC:
