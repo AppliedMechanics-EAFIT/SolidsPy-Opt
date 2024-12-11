@@ -176,19 +176,21 @@ def ESO_stress(
 
 # %%
 # Define load directions and positions
-load_directions = np.array([[0, 1, 0]])  # [Fx, Fy, Fz] for each load
-load_positions = np.array([[0, 0, 1]])     # [x_idx, y_idx, z_idx] for each load
+# load_directions = np.array([[0, 1, 0]])
+# load_positions = np.array([[0, 0, 1]])
+load_directions = np.array([[0, 1e8, 0], [1e8, 0, 0], [0, 0, -1e8]])
+load_positions = np.array([[5, 5, 9], [1, 1, 9], [8, 8, 9]])
 
 # Call the function
 nodes, mats, els, loads, idx_BC = beam_3d(
-    L=1, 
-    H=1, 
-    W=1, 
+    L=10, 
+    H=10, 
+    W=10, 
     E=206.8e9, 
     v=0.28, 
-    nx=1, 
-    ny=1, 
-    nz=1, 
+    nx=10, 
+    ny=10, 
+    nz=10, 
     dirs=load_directions, 
     positions=load_positions
 )
@@ -198,48 +200,38 @@ print("Nodes shape:", nodes.shape)
 print("Materials shape:", mats.shape)
 print("Elements shape:", els.shape)
 print("Loads shape:", loads.shape)
-print(nodes)
-print(loads)
-print(els)
 
 # System assembly
 assem_op, IBC, neq = ass.DME(nodes[:, -3:], els, ndof_node=3, ndof_el_max=8*3)
 stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-3], neq, assem_op, uel=uel.elast_hex8)
-# rhs_vec = ass.loadasem(loads, IBC, neq)
+rhs_vec = ass.loadasem(loads, IBC, neq)
+
+disp = spsolve(stiff_mat, rhs_vec)
+UCI = pos.complete_disp(IBC, nodes, disp, ndof_node=3)
 # %%
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
-def plot_3d_mesh(nodes, els, loads=None):
+def plot_3d_mesh(nodes, els, loads=None, disp=None):
     # Extract node coordinates
-    node_coords = nodes[:, 1:4]  # x, y, z
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    for node in nodes:
-        ax.text(node[1], node[2], node[3], f'{int(node[0])}', color='black')
+    mag = np.linalg.norm(UCI, axis=1)
+    mag = mag/mag.max()
+    cmap = plt.cm.viridis  # Choose a colormap (e.g., 'viridis', 'plasma', 'coolwarm')
+
+    for i, node in enumerate(nodes):
         is_BC = np.any(node[-3:] == -1)
-        color = 'blue'
-        if is_BC:
-            color = 'red'
-        elif np.any(loads[:,0] == node[0]):
-            color = 'green'
-        ax.scatter(node[1], node[2], node[3], color=color)
+        # color = 'red' if is_BC else cmap(norm(disp[i]))
+        ax.scatter(node[1], node[2], node[3], color=cmap(mag[i]))
 
-    # # Plot the elements
-    # for el in els:
-    #     node_indices = el
-    #     element_coords = node_coords[node_indices]
-    #     # Connect nodes of the element
-    #     lines = [[element_coords[i], element_coords[j]] for i in range(len(node_indices)) for j in range(i + 1, len(node_indices))]
-    #     ax.add_collection3d(Line3DCollection(lines, colors='r', linewidths=0.5, alpha=0.7))
-
-    # # Plot loads if available
-    # if loads is not None:
-    #     for load in loads:
-    #         node_index = load[0].astype(int)
-    #         start = node_coords[node_index]
-    #         load_vector = load[1:4]
-    #         ax.quiver(start[0], start[1], start[2], load_vector[0], load_vector[1], load_vector[2],
-    #                   color='g', label='Loads' if 'Loads' not in ax.get_legend_handles_labels()[1] else "", arrow_length_ratio=0.1)
+        # ax.text(node[1], node[2], node[3], f'{int(node[0])}', color='black')
+        # is_BC = np.any(node[-3:] == -1)
+        # color = 'blue'
+        # if is_BC:
+        #     color = 'red'
+        # elif np.any(loads[:,0] == node[0]):
+        #     color = 'green'
+        # ax.scatter(node[1], node[2], node[3], color=color)
 
     # Label the axes
     ax.set_xlabel('X')
@@ -248,10 +240,8 @@ def plot_3d_mesh(nodes, els, loads=None):
     plt.show()
 
 # Plot the mesh
-plot_3d_mesh(nodes, els, loads)
-
+plot_3d_mesh(nodes, els, loads, UCI)
 # %%
-
 nodes, mats, els, loads, idx_BC = beam(
     L=60, 
     H=60, 
@@ -275,7 +265,7 @@ els, nodes = ESO_stress(
     ER=0.05, 
     volfrac=0.5, 
     plot=True,
-    dim_problem=2,
+    dim_problem=2, 
     nnodes=4)
 
 # %% Eso stiff based

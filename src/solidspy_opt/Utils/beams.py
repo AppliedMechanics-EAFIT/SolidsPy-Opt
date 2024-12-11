@@ -210,7 +210,7 @@ def beam_3d(L=10, H=10, W=10, E=206.8e9, v=0.28, nx=10, ny=10, nz=10, dirs=np.ar
                 n5 = n4 + 1
                 n6 = n4 + (nz + 1)
                 n7 = n6 + 1
-                els.append([count, 9, 0, n0, n1, n3, n2, n4, n5, n7, n6])
+                els.append([count, 9, 0, n0, n2, n3, n1, n4, n6, n7, n5])
                 count += 1
     els = np.array(els, dtype=int)
 
