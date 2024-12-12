@@ -72,6 +72,12 @@ def ESO_stress(
         Array of the optimized elements after the ESO process.
     nodes : ndarray
         Array of the optimized nodes after the ESO process.
+    UC : ndarray
+      Array with the displacements.
+    E_nodes : ndarray
+        Strains evaluated at the nodes.
+    S_nodes : ndarray
+        Stresses evaluated at the nodes.
 
     Notes
     -----
@@ -124,17 +130,19 @@ def ESO_stress(
 
     # System solution
     disp = spsolve(stiff_mat, rhs_vec)
-    UCI = pos.complete_disp(IBC, nodes, disp)
-    E_nodesI, S_nodesI = pos.strain_nodes(nodes, els, mats[:,:2], UCI)
+    UCI = pos.complete_disp(IBC, nodes, disp, ndof_node=dim_problem)
+    E_nodesI, S_nodesI = pos.strain_nodes_3d(nodes, els, mats[:,:2], UCI) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UCI)
 
-    V_opt = calculate_mesh_area(nodes, els) * volfrac
+    Vi = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
+    V_opt = Vi * volfrac
 
     ELS = None
     for _ in range(niter):
         print("Number of elements: {}".format(els.shape[0]))
 
         # Check equilibrium
-        if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or calculate_mesh_area(nodes, els) < V_opt: 
+        Vi = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
+        if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or Vi < V_opt: 
             break
 
         ELS = els
@@ -146,8 +154,8 @@ def ESO_stress(
 
         # System solution
         disp = spsolve(stiff_mat, rhs_vec)
-        UC = pos.complete_disp(IBC, nodes, disp)
-        E_nodes, S_nodes = pos.strain_nodes(nodes, els, mats[:,:2], UC)
+        UC = pos.complete_disp(IBC, nodes, disp, ndof_node=dim_problem)
+        E_nodes, S_nodes = pos.strain_nodes_3d(nodes, els, mats[:,:2], UC) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UC)
         E_els, S_els = strain_els(els, E_nodes, S_nodes) # Calculate strains and stresses in elements
 
         vons = np.sqrt(S_els[:,0]**2 - (S_els[:,0]*S_els[:,1]) + S_els[:,1]**2 + 3*S_els[:,2]**2)
@@ -158,7 +166,7 @@ def ESO_stress(
         mask_els = protect_elsESO(els, loads, idx_BC) # Mask of elements to do not remove
         mask_del *= mask_els  
         els = np.delete(els, mask_del, 0) # Delete elements
-        del_nodeESO(nodes, els) # Remove nodes
+        del_nodeESO(nodes, els, nnodes, dim_problem) # Remove nodes
 
         RR += ER
 
@@ -172,101 +180,7 @@ def ESO_stress(
         plt.tricontourf(tri, fill_plot, cmap='binary')
         plt.axis("image");
 
-    return ELS, nodes
-
-# %%
-# Define load directions and positions
-# load_directions = np.array([[0, 1, 0]])
-# load_positions = np.array([[0, 0, 1]])
-load_directions = np.array([[0, 1e8, 0], [1e8, 0, 0], [0, 0, -1e8]])
-load_positions = np.array([[5, 5, 9], [1, 1, 9], [8, 8, 9]])
-
-# Call the function
-nodes, mats, els, loads, idx_BC = beam_3d(
-    L=10, 
-    H=10, 
-    W=10, 
-    E=206.8e9, 
-    v=0.28, 
-    nx=10, 
-    ny=10, 
-    nz=10, 
-    dirs=load_directions, 
-    positions=load_positions
-)
-
-# Example output handling
-print("Nodes shape:", nodes.shape)
-print("Materials shape:", mats.shape)
-print("Elements shape:", els.shape)
-print("Loads shape:", loads.shape)
-
-# System assembly
-assem_op, IBC, neq = ass.DME(nodes[:, -3:], els, ndof_node=3, ndof_el_max=8*3)
-stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-3], neq, assem_op, uel=uel.elast_hex8)
-rhs_vec = ass.loadasem(loads, IBC, neq)
-
-disp = spsolve(stiff_mat, rhs_vec)
-UCI = pos.complete_disp(IBC, nodes, disp, ndof_node=3)
-# %%
-from mpl_toolkits.mplot3d.art3d import Line3DCollection
-
-def plot_3d_mesh(nodes, els, loads=None, disp=None):
-    # Extract node coordinates
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    mag = np.linalg.norm(UCI, axis=1)
-    mag = mag/mag.max()
-    cmap = plt.cm.viridis  # Choose a colormap (e.g., 'viridis', 'plasma', 'coolwarm')
-
-    for i, node in enumerate(nodes):
-        is_BC = np.any(node[-3:] == -1)
-        # color = 'red' if is_BC else cmap(norm(disp[i]))
-        ax.scatter(node[1], node[2], node[3], color=cmap(mag[i]))
-
-        # ax.text(node[1], node[2], node[3], f'{int(node[0])}', color='black')
-        # is_BC = np.any(node[-3:] == -1)
-        # color = 'blue'
-        # if is_BC:
-        #     color = 'red'
-        # elif np.any(loads[:,0] == node[0]):
-        #     color = 'green'
-        # ax.scatter(node[1], node[2], node[3], color=color)
-
-    # Label the axes
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    plt.show()
-
-# Plot the mesh
-plot_3d_mesh(nodes, els, loads, UCI)
-# %%
-nodes, mats, els, loads, idx_BC = beam(
-    L=60, 
-    H=60, 
-    nx=60, 
-    ny=60, 
-    dirs=np.array([[0, -1]]), 
-    positions=np.array([[15, 1]]), 
-    n=1)
-
-print(nodes.shape)
-
-# %%
-els, nodes = ESO_stress(
-    nodes=nodes, 
-    els=els, 
-    mats=mats, 
-    loads=loads, 
-    idx_BC=idx_BC, 
-    niter=200, 
-    RR=0.005, 
-    ER=0.05, 
-    volfrac=0.5, 
-    plot=True,
-    dim_problem=2, 
-    nnodes=4)
+    return ELS, nodes, UC, E_nodes, S_nodes
 
 # %% Eso stiff based
 
@@ -274,12 +188,15 @@ def ESO_stiff(
     nodes: NDArray[np.float64], 
     els: NDArray[np.int_], 
     mats: NDArray[np.float64], 
+    loads: NDArray[np.float64], 
     idx_BC: NDArray[np.float64], 
     niter: int, 
     RR: float, 
     ER: float, 
     volfrac: float, 
-    plot: bool = False
+    plot: bool = False,
+    dim_problem: int = 2,
+    nnodes: int = 4
 ) -> None:
     """
     Performs Evolutionary Structural Optimization (ESO) based on stiff for a beam structure.
@@ -296,6 +213,8 @@ def ESO_stiff(
         - E is the Young's modulus,
         - nu is the Poisson's ratio,
         - rho is the density.
+    loads : ndarray
+        Array of elements with the format [element number, X load magnitud, Y load magnitud, Z load magnitud].
     idx_BC : ndarray
         Array of node indices with boundary conditions applied.
     niter : int
@@ -308,6 +227,10 @@ def ESO_stiff(
         Target volume fraction for the optimized structure, expressed as a fraction of the initial volume.
     plot : bool, optional
         If True, plot the initial and optimized meshes. Defaults to False.
+    dim_problem : int, optional
+        Dimension of the problem (2 for 2D, 3 for 3D). Default is 2.
+    nnodes : int, optional
+        Number of nodes per element. For 2D problems it can be 3 or 4 and for 3D problems 4 or 8. Default is 4.
 
     Returns
     -------
@@ -315,6 +238,12 @@ def ESO_stiff(
         Array of the optimized elements after the ESO process.
     nodes : ndarray
         Array of the optimized nodes after the ESO process.
+    UC : ndarray
+      Array with the displacements.
+    E_nodes : ndarray
+        Strains evaluated at the nodes.
+    S_nodes : ndarray
+        Stresses evaluated at the nodes.
 
     Notes
     -----
@@ -343,39 +272,54 @@ def ESO_stiff(
     ...     nodes, els, mats, idx_BC, niter=10, RR=0.8, ER=0.05, volfrac=0.5, plot=True
     ... )
     """
+    assert dim_problem in [2, 3], "dim_problem must be either 2 (for 2D) or 3 (for 3D)"
+    assert nnodes in [3, 4, 8], "nnodes must be either 3, 4 (for 2D) or 4, 8 (for 3D)"
+
+    uel_func = None
+    if dim_problem == 2:
+        if nnodes == 3:
+            uel_func = uel.elast_tri3
+        else:
+            uel_func = uel.elast_quad4
+    elif dim_problem == 3:
+        if nnodes == 4:
+            uel_func = uel.elast_tet4
+        else:
+            uel_func = uel.elast_hex8
+
     elsI= np.copy(els)
 
     # System assembly
-    assem_op, IBC, neq = ass.DME(nodes[:, -2:], els, ndof_el_max=8)
-    stiff_mat, _ = ass.assembler(els, mats, nodes[:, :3], neq, assem_op)
+    assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+    stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
     rhs_vec = ass.loadasem(loads, IBC, neq)
 
     # System solution
     disp = spsolve(stiff_mat, rhs_vec)
-    UCI = pos.complete_disp(IBC, nodes, disp)
-    E_nodesI, S_nodesI = pos.strain_nodes(nodes, els, mats[:,:2], UCI)
+    UCI = pos.complete_disp(IBC, nodes, disp, ndof_node=dim_problem)
+    E_nodesI, S_nodesI = pos.strain_nodes_3d(nodes, els, mats[:,:2], UCI) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UCI)
 
-    niter = 200
-    RR = 0.005 # Initial removal ratio
-    ER = 0.05 # Removal ratio increment
-    V_opt = calculate_mesh_area(nodes, els) * volfrac
+    Vi = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
+    V_opt = Vi * volfrac
+
     ELS = None
     for _ in range(niter):
+        print("Number of elements: {}".format(els.shape[0]))
+
         # Check equilibrium
-        if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or calculate_mesh_area(nodes, els) < V_opt: 
-            break # Check equilibrium/volume and stop if not
+        Vi = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
+        if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or Vi < V_opt: 
+            break
         
         # System assembly
-        assem_op, IBC, neq = ass.DME(nodes[:, -2:], els, ndof_el_max=8)
-        stiff_mat, _ = ass.assembler(els, mats, nodes[:, :3], neq, assem_op)
+        assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+        stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
         rhs_vec = ass.loadasem(loads, IBC, neq)
 
         # System solution
         disp = spsolve(stiff_mat, rhs_vec)
-        UC = pos.complete_disp(IBC, nodes, disp)
-        E_nodes, S_nodes = pos.strain_nodes(nodes, els, mats[:,:2], UC)
-        E_els, S_els = strain_els(els, E_nodes, S_nodes) # Calculate strains and stresses in elements
-        print("Number of elements: {}".format(els.shape[0]))
+        UC = pos.complete_disp(IBC, nodes, disp, ndof_node=dim_problem)
+        E_nodes, S_nodes = pos.strain_nodes_3d(nodes, els, mats[:,:2], UC) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UC)
 
         # Compute Sensitivity number
         sensi_number = sensitivity_elsESO(nodes, mats, els, UC) # Sensitivity number
@@ -400,7 +344,7 @@ def ESO_stiff(
         plt.tricontourf(tri, fill_plot, cmap='binary')
         plt.axis("image");
 
-    return ELS, nodes
+    return ELS, nodes, UC, E_nodes, S_nodes
 
 
 # %% BESO
@@ -409,12 +353,15 @@ def BESO(
     nodes: NDArray[np.float64], 
     els: NDArray[np.int_], 
     mats: NDArray[np.float64], 
+    loads: NDArray[np.float64], 
     idx_BC: NDArray[np.float64], 
     niter: int, 
     t: float, 
     ER: float, 
     volfrac: float, 
-    plot: bool = False
+    plot: bool = False,
+    dim_problem: int = 2,
+    nnodes: int = 4
 ) -> None:
     """
     Performs Bi-directional Evolutionary Structural Optimization (BESO) for a 3D structure.
@@ -431,6 +378,8 @@ def BESO(
         - E is the Young's modulus,
         - nu is the Poisson's ratio,
         - rho is the density.
+    loads : ndarray
+        Array of elements with the format [element number, X load magnitud, Y load magnitud, Z load magnitud].
     idx_BC : ndarray
         Array of node indices with boundary conditions applied.
     niter : int
@@ -443,6 +392,10 @@ def BESO(
         Target volume fraction for the optimized structure, expressed as a fraction of the initial volume.
     plot : bool, optional
         If True, plot the initial and optimized meshes. Defaults to False.
+    dim_problem : int, optional
+        Dimension of the problem (2 for 2D, 3 for 3D). Default is 2.
+    nnodes : int, optional
+        Number of nodes per element. For 2D problems it can be 3 or 4 and for 3D problems 4 or 8. Default is 4.
 
     Returns
     -------
@@ -450,6 +403,12 @@ def BESO(
         Array of the optimized elements after the BESO process.
     nodes : ndarray
         Array of the optimized nodes after the BESO process.
+    UC : ndarray
+      Array with the displacements.
+    E_nodes : ndarray
+        Strains evaluated at the nodes.
+    S_nodes : ndarray
+        Stresses evaluated at the nodes.
 
     Notes
     -----
@@ -479,24 +438,39 @@ def BESO(
     ... )
 
     """
+    assert dim_problem in [2, 3], "dim_problem must be either 2 (for 2D) or 3 (for 3D)"
+    assert nnodes in [3, 4, 8], "nnodes must be either 3, 4 (for 2D) or 4, 8 (for 3D)"
+
+    uel_func = None
+    if dim_problem == 2:
+        if nnodes == 3:
+            uel_func = uel.elast_tri3
+        else:
+            uel_func = uel.elast_quad4
+    elif dim_problem == 3:
+        if nnodes == 4:
+            uel_func = uel.elast_tet4
+        else:
+            uel_func = uel.elast_hex8
 
     elsI = np.copy(els)
 
     # System assembly
-    assem_op, IBC, neq = ass.DME(nodes[:, -2:], els, ndof_el_max=8)
-    stiff_mat, _ = ass.assembler(els, mats, nodes[:, :3], neq, assem_op)
+    assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+    stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
     rhs_vec = ass.loadasem(loads, IBC, neq)
 
     # System solution
     disp = spsolve(stiff_mat, rhs_vec)
-    UCI = pos.complete_disp(IBC, nodes, disp)
-    E_nodesI, S_nodesI = pos.strain_nodes(nodes, els, mats[:,:2], UCI)
+    UCI = pos.complete_disp(IBC, nodes, disp, ndof_node=dim_problem)
+    E_nodesI, S_nodesI = pos.strain_nodes_3d(nodes, els, mats[:,:2], UCI) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UCI)
 
     r_min = np.linalg.norm(nodes[0,1:3] - nodes[1,1:3]) * 1 # Radius for the sensitivity filter
     adj_nodes = adjacency_nodes(nodes, els) # Adjacency nodes
     centers = center_els(nodes, els) # Centers of elements
 
-    V_opt = calculate_mesh_area(nodes, els) * volfrac # Optimal volume
+    Vi = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
+    V_opt = Vi * volfrac
 
     # Initialize variables.
     ELS = None
@@ -513,22 +487,22 @@ def BESO(
         V = calculate_mesh_area(nodes, els_del) # Volume of the structure
 
         # Check equilibrium
-        if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or calculate_mesh_area(nodes, els) < V_opt: 
+        Vi = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
+        if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or Vi < V_opt: 
             break
 
         # Storage the solution
         ELS = els_del 
 
         # System assembly
-        assem_op, IBC, neq = ass.DME(nodes[:, -2:], els, ndof_el_max=8)
-        stiff_mat, _ = ass.assembler(els, mats, nodes[:, :3], neq, assem_op)
+        assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+        stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
         rhs_vec = ass.loadasem(loads, IBC, neq)
 
         # System solution
         disp = spsolve(stiff_mat, rhs_vec)
-        UC = pos.complete_disp(IBC, nodes, disp)
-        E_nodes, S_nodes = pos.strain_nodes(nodes, els, mats[:,:2], UC)
-        E_els, S_els = strain_els(els, E_nodes, S_nodes) # Calculate strains and stresses in elements
+        UC = pos.complete_disp(IBC, nodes, disp, ndof_node=dim_problem)
+        E_nodes, S_nodes = pos.strain_nodes_3d(nodes, els, mats[:,:2], UC) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UC)
 
         # Sensitivity filter
         sensi_e = sensitivity_elsBESO(nodes, mats, els, mask, UC) # Calculate the sensitivity of the elements
@@ -583,7 +557,7 @@ def BESO(
         plt.tricontourf(tri, fill_plot, cmap='binary')
         plt.axis("image");
 
-    return ELS, nodes
+    return ELS, nodes, UC, E_nodes, S_nodes
 
 # %% SIMP
 
@@ -591,10 +565,13 @@ def SIMP(
     nodes: NDArray[np.float64], 
     els: NDArray[np.int_], 
     mats: NDArray[np.float64], 
+    loads: NDArray[np.float64], 
     niter: int, 
     penal: float, 
     volfrac: float, 
-    plot: bool = False
+    plot: bool = False,
+    dim_problem: int = 2,
+    nnodes: int = 4
 ) -> None:
     """
     Performs Structural Optimization using the Solid Isotropic Material with Penalization (SIMP) method for a 3D structure.
@@ -611,6 +588,8 @@ def SIMP(
         - E is the Young's modulus,
         - nu is the Poisson's ratio,
         - rho is the density.
+    loads : ndarray
+        Array of elements with the format [element number, X load magnitud, Y load magnitud, Z load magnitud].
     niter : int
         Number of iterations for the SIMP process.
     penal : float
@@ -619,6 +598,10 @@ def SIMP(
         Target volume fraction for the optimized structure, expressed as a fraction of the initial volume.
     plot : bool, optional
         If True, plot the initial and optimized meshes. Defaults to False.
+    dim_problem : int, optional
+        Dimension of the problem (2 for 2D, 3 for 3D). Default is 2.
+    nnodes : int, optional
+        Number of nodes per element. For 2D problems it can be 3 or 4 and for 3D problems 4 or 8. Default is 4.
 
     Returns
     -------
@@ -655,6 +638,21 @@ def SIMP(
     ... )
 
     """
+    assert dim_problem in [2, 3], "dim_problem must be either 2 (for 2D) or 3 (for 3D)"
+    assert nnodes in [3, 4, 8], "nnodes must be either 3, 4 (for 2D) or 4, 8 (for 3D)"
+
+    uel_func = None
+    if dim_problem == 2:
+        if nnodes == 3:
+            uel_func = uel.elast_tri3
+        else:
+            uel_func = uel.elast_quad4
+    elif dim_problem == 3:
+        if nnodes == 4:
+            uel_func = uel.elast_tet4
+        else:
+            uel_func = uel.elast_hex8
+
     # Initialize variables
     Emin=1e-9 # Minimum young modulus of the material
     Emax=1.0 # Maximum young modulus of the material
@@ -669,6 +667,7 @@ def SIMP(
 
     r_min = np.linalg.norm(nodes[0,1:3] - nodes[1,1:3]) * 4 # Radius for the sensitivity filter
     centers = center_els(nodes, els) # Calculate centers
+
     E = mats[0,0] # Young modulus
     nu = mats[0,1] # Poisson ratio
     k = np.array([1/2-nu/6,1/8+nu/8,-1/4-nu/12,-1/8+3*nu/8,-1/4+nu/12,-1/8-nu/8,nu/6,1/8-3*nu/8]) # Coefficients

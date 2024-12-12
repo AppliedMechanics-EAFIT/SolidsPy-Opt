@@ -342,7 +342,7 @@ def protect_elsESO(els, loads, BC):
         
     return mask_els
 
-def del_nodeESO(nodes, els):
+def del_nodeESO(nodes, els, nnodes, dim_problem):
     """
     Retricts nodes dof that aren't been used.
     
@@ -358,8 +358,8 @@ def del_nodeESO(nodes, els):
     """   
     n_nodes = nodes.shape[0]
     for n in range(n_nodes):
-        if n not in els[:, -4:]:
-            nodes[n, -2:] = -1
+        if n not in els[:, -nnodes:]:
+            nodes[n, -dim_problem:] = -1
 
 def sparse_assem(elements, mats, neq, assem_op, kloc):
     """
