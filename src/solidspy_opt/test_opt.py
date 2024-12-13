@@ -7,9 +7,9 @@ from numpy.typing import NDArray
 from typing import List, Tuple, AnyStr
 from scipy.sparse.linalg import spsolve
 
-from Utils.beams import * 
-from Utils.solver import * 
-from Utils.volumes import * 
+from utils.beams import * 
+from utils.solver import * 
+from utils.volumes import * 
 
 import solidspy.assemutil as ass 
 import solidspy.postprocesor as pos 
@@ -48,7 +48,7 @@ def ESO_stress(
         - nu is the Poisson's ratio,
         - rho is the density.
     loads : ndarray
-        Array of elements with the format [element number, X load magnitud, Y load magnitud, Z load magnitud].
+        Array of elements with the format [node number, X load magnitud, Y load magnitud, Z load magnitud].
     idx_BC : ndarray
         Array of node indices with boundary conditions applied.
     niter : int
@@ -72,6 +72,12 @@ def ESO_stress(
         Array of the optimized elements after the ESO process.
     nodes : ndarray
         Array of the optimized nodes after the ESO process.
+    UC : ndarray
+      Array with the displacements.
+    E_nodes : ndarray
+        Strains evaluated at the nodes.
+    S_nodes : ndarray
+        Stresses evaluated at the nodes.
 
     Notes
     -----
@@ -134,8 +140,8 @@ def ESO_stress(
     for _ in range(niter):
         print("Number of elements: {}".format(els.shape[0]))
 
-        Vi = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
         # Check equilibrium
+        Vi = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
         if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or Vi < V_opt: 
             break
 
@@ -174,7 +180,7 @@ def ESO_stress(
         plt.tricontourf(tri, fill_plot, cmap='binary')
         plt.axis("image");
 
-    return ELS, nodes, UC
+    return ELS, nodes, UC, E_nodes, S_nodes
 
 # %%
 # load_directions = np.array([[0, 1, 0]])
@@ -196,7 +202,7 @@ nodes, mats, els, loads, idx_BC = beam_3d(
     positions=load_positions
 )
 
-els, nodes, UC = ESO_stress(
+ELS, nodes, UC, E_nodes, S_nodes = ESO_stress(
     nodes=nodes, 
     els=els, 
     mats=mats, 
@@ -324,3 +330,72 @@ def plot_3d_hexahedral_mesh(nodes, elements, values=None):
 values = np.random.rand(nodes.shape[0])  # Example values
 
 plot_3d_hexahedral_mesh(nodes[:,1:4], els[:,3:], values)
+
+# %%
+
+import numpy as np
+import pyvista as pv
+
+# Example inputs (replace with your actual data)
+# nodes: [node_num, x, y, z, BCx, BCy, BCz]
+# els: [element_num, material, node1, node2, ..., node8]
+# E_nodes: strain at each node, shape: (Nnodes, n_components)
+# S_nodes: stress at each node, shape: (Nnodes, n_components)
+
+# 1. Extract nodal coordinates
+# Assuming nodes is of shape (Nnodes, 7) and columns are [id, x, y, z, BCx, BCy, BCz]
+node_ids = nodes[:, 0].astype(int)
+points = nodes[:, 1:4]  # x, y, z coordinates
+
+# 2. Construct the connectivity array for UnstructuredGrid
+# PyVista expects a cell array where each cell is represented as:
+# [number_of_points_in_cell, pt0, pt1, ..., pt_(n-1), number_of_points_in_next_cell, ...]
+# For a hexahedral element (8-nodes), it would look like:
+# [8, node_id0, node_id1, node_id2, node_id3, node_id4, node_id5, node_id6, node_id7, 8, ...]
+
+# Extract element connectivity (assuming els: [element_num, material, node1, ..., node8])
+element_connectivity = els[:, 3:].astype(int)  # node indices for each element
+num_elems = element_connectivity.shape[0]
+
+# Convert from 1-based to 0-based indexing if needed
+# Check if your node IDs start at 1. If so:
+element_connectivity -= 1
+
+# Build the cell array
+# Each cell: [8, n0, n1, n2, n3, n4, n5, n6, n7]
+cells = np.hstack([np.array([8]), element_connectivity[0]])
+for i in range(1, num_elems):
+    cells = np.hstack([cells, np.array([8]), element_connectivity[i]])
+
+# 3. Define the cell types
+# For VTK, a hexahedral cell type = VTK_HEXAHEDRON = 12
+cell_types = np.full(num_elems, 12, dtype=np.uint8)
+
+# 4. Create the UnstructuredGrid
+grid = pv.UnstructuredGrid(cells, cell_types, points)
+
+# 5. Attach strain or stress data as point data
+# Here we choose stress (S_nodes). Suppose S_nodes is shape (Nnodes, 6) for a stress tensor.
+# You can choose a single component or compute an equivalent stress (like von Mises) if needed.
+# For simplicity, let's take the first stress component, or compute a magnitude if it's a vector.
+
+# Example: If S_nodes is a vector of shape (Nnodes, 3):
+Sx = S_nodes[:, 0]
+Sy = S_nodes[:, 1]
+Sz = S_nodes[:, 2]
+S_magnitude = np.sqrt(Sx**2 + Sy**2 + Sz**2)
+
+# Add this as point data
+grid.point_data["Stress_Magnitude"] = S_magnitude
+
+# Alternatively, if you want to plot strain:
+# E_magnitude = np.linalg.norm(E_nodes, axis=1)  # if it's vector-like
+# grid.point_data["Strain_Magnitude"] = E_magnitude
+
+# 6. Plot the mesh
+# Use "Stress_Magnitude" as the scalars
+plotter = pv.Plotter()
+plotter.add_mesh(grid, scalars="Stress_Magnitude", cmap="jet", show_edges=True)
+plotter.add_axes()
+plotter.show_bounds(grid="front")
+plotter.show()

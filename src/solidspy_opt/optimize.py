@@ -7,9 +7,9 @@ from numpy.typing import NDArray
 from typing import List, Tuple, AnyStr
 from scipy.sparse.linalg import spsolve
 
-from Utils.beams import * 
-from Utils.solver import * 
-from Utils.volumes import * 
+from utils.beams import * 
+from utils.solver import * 
+from utils.volumes import * 
 
 import solidspy.assemutil as ass 
 import solidspy.postprocesor as pos 
@@ -48,7 +48,7 @@ def ESO_stress(
         - nu is the Poisson's ratio,
         - rho is the density.
     loads : ndarray
-        Array of elements with the format [element number, X load magnitud, Y load magnitud, Z load magnitud].
+        Array of elements with the format [node number, X load magnitud, Y load magnitud, Z load magnitud].
     idx_BC : ndarray
         Array of node indices with boundary conditions applied.
     niter : int
@@ -214,7 +214,7 @@ def ESO_stiff(
         - nu is the Poisson's ratio,
         - rho is the density.
     loads : ndarray
-        Array of elements with the format [element number, X load magnitud, Y load magnitud, Z load magnitud].
+        Array of elements with the format [node number, X load magnitud, Y load magnitud, Z load magnitud].
     idx_BC : ndarray
         Array of node indices with boundary conditions applied.
     niter : int
@@ -379,7 +379,7 @@ def BESO(
         - nu is the Poisson's ratio,
         - rho is the density.
     loads : ndarray
-        Array of elements with the format [element number, X load magnitud, Y load magnitud, Z load magnitud].
+        Array of elements with the format [node number, X load magnitud, Y load magnitud, Z load magnitud].
     idx_BC : ndarray
         Array of node indices with boundary conditions applied.
     niter : int
@@ -589,7 +589,7 @@ def SIMP(
         - nu is the Poisson's ratio,
         - rho is the density.
     loads : ndarray
-        Array of elements with the format [element number, X load magnitud, Y load magnitud, Z load magnitud].
+        Array of elements with the format [node number, X load magnitud, Y load magnitud, Z load magnitud].
     niter : int
         Number of iterations for the SIMP process.
     penal : float
