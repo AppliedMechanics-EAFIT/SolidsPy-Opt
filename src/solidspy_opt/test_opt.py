@@ -17,7 +17,6 @@ import solidspy.uelutil as uel
 np.seterr(divide='ignore', invalid='ignore')
 
 # %% ESO stress based
-
 def ESO_stress(
     nodes: NDArray[np.float64], 
     els: NDArray[np.int_], 
