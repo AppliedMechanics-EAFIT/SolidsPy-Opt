@@ -47,9 +47,11 @@ Homepage = "https://github.com/AppliedMechanics-EAFIT/SolidsPy-Opt"
 Repository = "https://github.com/AppliedMechanics-EAFIT/SolidsPy-Opt"
 BugTracker = "https://github.com/AppliedMechanics-EAFIT/SolidsPy-Opt/issues"
 
+[project.scripts]
+download-weights = "solidspy_opt.download_weights:download_figshare_weights"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-
