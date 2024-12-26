@@ -16,7 +16,8 @@ import solidspy.postprocesor as pos
 import solidspy.uelutil as uel 
 np.seterr(divide='ignore', invalid='ignore')
 
-# %% ESO stress based
+# %%
+
 def ESO_stress(
     nodes: NDArray[np.float64], 
     els: NDArray[np.int_], 
@@ -169,7 +170,7 @@ def ESO_stress(
 
         RR += ER
 
-    if plot:
+    if plot and dim_problem == 2:
         pos.fields_plot(elsI, nodes, UCI, E_nodes=E_nodesI, S_nodes=S_nodesI) # Plot initial mesh
         pos.fields_plot(ELS, nodes, UC, E_nodes=E_nodes, S_nodes=S_nodes) # Plot optimized mesh
 
@@ -178,13 +179,15 @@ def ESO_stress(
         tri = pos.mesh2tri(nodes, ELS)
         plt.tricontourf(tri, fill_plot, cmap='binary')
         plt.axis("image");
+    elif plot and dim_problem == 3:
+        pos.fields_plot_3d(nodes, els, loads, idx_BC, S_nodes, E_nodes, nnodes=8, data_type='stress', show_BC=True, show_loads=True, arrow_scale=2.0, arrow_color="blue", cmap="viridis", show_axes=True, show_bounds=True, show_edges=False)
 
     return ELS, nodes, UC, E_nodes, S_nodes
 
 # %%
 # load_directions = np.array([[0, 1, 0]])
 # load_positions = np.array([[0, 0, 1]])
-load_directions = np.array([[0, 1e8, 0], [1e8, 0, 0], [0, 0, -1e8]])
+load_directions = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])
 load_positions = np.array([[5, 5, 9], [1, 1, 9], [8, 8, 9]])
 
 # Call the function
@@ -201,7 +204,7 @@ nodes, mats, els, loads, idx_BC = beam_3d(
     positions=load_positions
 )
 
-ELS, nodes, UC, E_nodes, S_nodes = ESO_stress(
+els, nodes, UC, E_nodes, S_nodes = ESO_stress(
     nodes=nodes, 
     els=els, 
     mats=mats, 
@@ -211,7 +214,7 @@ ELS, nodes, UC, E_nodes, S_nodes = ESO_stress(
     RR=0.005, 
     ER=0.05, 
     volfrac=0.5, 
-    plot=False,
+    plot=True,
     dim_problem=3, 
     nnodes=8)
 
@@ -224,35 +227,6 @@ ELS, nodes, UC, E_nodes, S_nodes = ESO_stress(
 # E_nodesI, S_nodesI = pos.strain_nodes_3d(nodes, els, mats[:,:2], UCI)
 # %%
 
-def plot_3d_mesh(nodes, loads=None, disp=None):
-    # Extract node coordinates
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    mag = np.linalg.norm(disp, axis=1)
-    mag = mag/mag.max()
-    cmap = plt.cm.viridis  # Choose a colormap (e.g., 'viridis', 'plasma', 'coolwarm')
-
-    for i, node in enumerate(nodes):
-        ax.scatter(node[1], node[2], node[3], color=cmap(mag[i]))
-
-        # is_BC = np.any(node[-3:] == -1)
-        # ax.text(node[1], node[2], node[3], f'{int(node[0])}', color='black')
-        # is_BC = np.any(node[-3:] == -1)
-        # color = 'blue'
-        # if is_BC:
-        #     color = 'red'
-        # elif np.any(loads[:,0] == node[0]):
-        #     color = 'green'
-        # ax.scatter(node[1], node[2], node[3], color=color)
-
-    # Label the axes
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    plt.show()
-
-# Plot the mesh
-plot_3d_mesh(nodes, loads, UC)
 # %%
 nodes, mats, els, loads, idx_BC = beam(
     L=60, 
@@ -276,125 +250,3 @@ els, nodes, UC = ESO_stress(
     plot=True,
     dim_problem=2, 
     nnodes=4)
-# %%
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-import matplotlib.pyplot as plt
-import numpy as np
-
-def plot_3d_hexahedral_mesh(nodes, elements, values=None):
-    """
-    Plot a 3D hexahedral mesh using Matplotlib.
-
-    Parameters
-    ----------
-    nodes : ndarray of shape (n_nodes, 3)
-        Node coordinates.
-    elements : ndarray of shape (n_elements, 8)
-        Indices of the nodes forming each hexahedron.
-    values : ndarray of shape (n_nodes,), optional
-        Values at the nodes to color the mesh. If None, a uniform color is used.
-    """
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-
-    # Default values for uniform color
-    if values is None:
-        values = np.ones(nodes.shape[0])
-
-    # Define hexahedron faces for visualization
-    faces = [
-        [0, 1, 2, 3],  # Bottom
-        [4, 5, 6, 7],  # Top
-        [0, 1, 5, 4],  # Front
-        [2, 3, 7, 6],  # Back
-        [0, 3, 7, 4],  # Left
-        [1, 2, 6, 5],  # Right
-    ]
-
-    # Plot each element
-    for el in elements:
-        for face in faces:
-            verts = [nodes[el[node], :] for node in face]
-            poly = Poly3DCollection([verts], edgecolor='k', alpha=0.6)
-            face_value = values[el].mean()  # Average value for face coloring
-            poly.set_facecolor(plt.cm.viridis(face_value))
-            ax.add_collection3d(poly)
-
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.set_zlabel("Z")
-    ax.auto_scale_xyz(nodes[:, 0], nodes[:, 1], nodes[:, 2])
-    plt.show()
-
-values = np.random.rand(nodes.shape[0])  # Example values
-
-plot_3d_hexahedral_mesh(nodes[:,1:4], els[:,3:], values)
-
-# %%
-
-import numpy as np
-import pyvista as pv
-
-# Example inputs (replace with your actual data)
-# nodes: [node_num, x, y, z, BCx, BCy, BCz]
-# els: [element_num, material, node1, node2, ..., node8]
-# E_nodes: strain at each node, shape: (Nnodes, n_components)
-# S_nodes: stress at each node, shape: (Nnodes, n_components)
-
-# 1. Extract nodal coordinates
-# Assuming nodes is of shape (Nnodes, 7) and columns are [id, x, y, z, BCx, BCy, BCz]
-node_ids = nodes[:, 0].astype(int)
-points = nodes[:, 1:4]  # x, y, z coordinates
-
-# 2. Construct the connectivity array for UnstructuredGrid
-# PyVista expects a cell array where each cell is represented as:
-# [number_of_points_in_cell, pt0, pt1, ..., pt_(n-1), number_of_points_in_next_cell, ...]
-# For a hexahedral element (8-nodes), it would look like:
-# [8, node_id0, node_id1, node_id2, node_id3, node_id4, node_id5, node_id6, node_id7, 8, ...]
-
-# Extract element connectivity (assuming els: [element_num, material, node1, ..., node8])
-element_connectivity = els[:, 3:].astype(int)  # node indices for each element
-num_elems = element_connectivity.shape[0]
-
-# Convert from 1-based to 0-based indexing if needed
-# Check if your node IDs start at 1. If so:
-element_connectivity -= 1
-
-# Build the cell array
-# Each cell: [8, n0, n1, n2, n3, n4, n5, n6, n7]
-cells = np.hstack([np.array([8]), element_connectivity[0]])
-for i in range(1, num_elems):
-    cells = np.hstack([cells, np.array([8]), element_connectivity[i]])
-
-# 3. Define the cell types
-# For VTK, a hexahedral cell type = VTK_HEXAHEDRON = 12
-cell_types = np.full(num_elems, 12, dtype=np.uint8)
-
-# 4. Create the UnstructuredGrid
-grid = pv.UnstructuredGrid(cells, cell_types, points)
-
-# 5. Attach strain or stress data as point data
-# Here we choose stress (S_nodes). Suppose S_nodes is shape (Nnodes, 6) for a stress tensor.
-# You can choose a single component or compute an equivalent stress (like von Mises) if needed.
-# For simplicity, let's take the first stress component, or compute a magnitude if it's a vector.
-
-# Example: If S_nodes is a vector of shape (Nnodes, 3):
-Sx = S_nodes[:, 0]
-Sy = S_nodes[:, 1]
-Sz = S_nodes[:, 2]
-S_magnitude = np.sqrt(Sx**2 + Sy**2 + Sz**2)
-
-# Add this as point data
-grid.point_data["Stress_Magnitude"] = S_magnitude
-
-# Alternatively, if you want to plot strain:
-# E_magnitude = np.linalg.norm(E_nodes, axis=1)  # if it's vector-like
-# grid.point_data["Strain_Magnitude"] = E_magnitude
-
-# 6. Plot the mesh
-# Use "Stress_Magnitude" as the scalars
-plotter = pv.Plotter()
-plotter.add_mesh(grid, scalars="Stress_Magnitude", cmap="jet", show_edges=True)
-plotter.add_axes()
-plotter.show_bounds(grid="front")
-plotter.show()

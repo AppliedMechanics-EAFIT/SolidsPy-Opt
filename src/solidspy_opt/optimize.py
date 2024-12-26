@@ -170,7 +170,7 @@ def ESO_stress(
 
         RR += ER
 
-    if plot:
+    if plot and dim_problem == 2:
         pos.fields_plot(elsI, nodes, UCI, E_nodes=E_nodesI, S_nodes=S_nodesI) # Plot initial mesh
         pos.fields_plot(ELS, nodes, UC, E_nodes=E_nodes, S_nodes=S_nodes) # Plot optimized mesh
 
@@ -179,6 +179,8 @@ def ESO_stress(
         tri = pos.mesh2tri(nodes, ELS)
         plt.tricontourf(tri, fill_plot, cmap='binary')
         plt.axis("image");
+    elif plot and dim_problem == 3:
+        pos.fields_plot_3d(nodes, els, loads, idx_BC, S_nodes, E_nodes, nnodes=8, data_type='stress', show_BC=True, show_loads=True, arrow_scale=2.0, arrow_color="blue", cmap="viridis", show_axes=True, show_bounds=True, show_edges=False)
 
     return ELS, nodes, UC, E_nodes, S_nodes
 

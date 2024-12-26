@@ -6,4 +6,4 @@ Principal developers
 --------------------
 
 * Nicolas Guarin-Zapata (`@nicoguaro`)
-* Kevin Sepulveda (`@kssepulveg`)
+* Kevin Sepúlveda-García (`@kssgarcia`)
