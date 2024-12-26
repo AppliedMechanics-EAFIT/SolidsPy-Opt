@@ -144,7 +144,8 @@ def ESO_stress(
         Vi = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
         if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or Vi < V_opt: 
             break
-
+        
+        # Storage the solution
         ELS = els
         
         # System assembly
@@ -180,7 +181,7 @@ def ESO_stress(
         plt.tricontourf(tri, fill_plot, cmap='binary')
         plt.axis("image");
     elif plot and dim_problem == 3:
-        pos.fields_plot_3d(nodes, els, loads, idx_BC, S_nodes, E_nodes, nnodes=8, data_type='stress', show_BC=True, show_loads=True, arrow_scale=2.0, arrow_color="blue", cmap="viridis", show_axes=True, show_bounds=True, show_edges=False)
+        pos.fields_plot_3d(nodes, ELS, loads, idx_BC, S_nodes, E_nodes, nnodes=8, data_type='stress', show_BC=True, show_loads=True, arrow_scale=2.0, arrow_color="blue", cmap="viridis", show_axes=True, show_bounds=True, show_edges=False)
 
     return ELS, nodes, UC, E_nodes, S_nodes
 
@@ -312,6 +313,9 @@ def ESO_stiff(
         Vi = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
         if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or Vi < V_opt: 
             break
+
+        # Storage the solution
+        ELS = els
         
         # System assembly
         assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
@@ -324,19 +328,19 @@ def ESO_stiff(
         E_nodes, S_nodes = pos.strain_nodes_3d(nodes, els, mats[:,:2], UC) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UC)
 
         # Compute Sensitivity number
-        sensi_number = sensitivity_elsESO(nodes, mats, els, UC) # Sensitivity number
+        sensi_number = sensitivity_elsESO(nodes, mats, els, UC, uel_func, nnodes, dim_problem) # Sensitivity number
+        
         mask_del = sensi_number < RR # Mask of elements to be removed
         mask_els = protect_elsESO(els, loads, idx_BC) # Mask of elements to do not remove
         mask_del *= mask_els # Mask of elements to be removed and not protected
-        ELS = els # Save last iteration elements
         
         # Remove/add elements
         els = np.delete(els, mask_del, 0) # Remove elements
-        del_nodeESO(nodes, els) # Remove nodes
+        del_nodeESO(nodes, els, nnodes, dim_problem) # Remove nodes
 
         RR += ER
 
-    if plot:
+    if plot and dim_problem == 2:
         pos.fields_plot(elsI, nodes, UCI, E_nodes=E_nodesI, S_nodes=S_nodesI) # Plot initial mesh
         pos.fields_plot(ELS, nodes, UC, E_nodes=E_nodes, S_nodes=S_nodes) # Plot optimized mesh
 
@@ -345,6 +349,8 @@ def ESO_stiff(
         tri = pos.mesh2tri(nodes, ELS)
         plt.tricontourf(tri, fill_plot, cmap='binary')
         plt.axis("image");
+    elif plot and dim_problem == 3:
+        pos.fields_plot_3d(nodes, ELS, loads, idx_BC, S_nodes, E_nodes, nnodes=8, data_type='stress', show_BC=True, show_loads=True, arrow_scale=2.0, arrow_color="blue", cmap="viridis", show_axes=True, show_bounds=True, show_edges=False)
 
     return ELS, nodes, UC, E_nodes, S_nodes
 

@@ -87,7 +87,7 @@ def volume(els, length, height, nx, ny):
 
     return V
 
-def sensitivity_elsBESO(nodes, mats, els, mask, UC):
+def sensitivity_elsBESO(nodes, mats, els, mask, UC, uel_func, nnodes, dim_problem):
     """
     Calculate the sensitivity number for each element.
     
@@ -110,17 +110,17 @@ def sensitivity_elsBESO(nodes, mats, els, mask, UC):
         Sensitivity number for each element.
     """   
     sensi_number = []
-    for el in range(els.shape[0]):
-        if mask[el] == False:
+    for el in els:
+        if mask[el[0]] == False:
             sensi_number.append(0)
             continue
-        params = tuple(mats[els[el, 2], :])
-        elcoor = nodes[els[el, -4:], 1:3]
-        kloc, _ = uel.elast_quad4(elcoor, params)
+        params = tuple(mats[el[2], :])
+        node_el = el[-nnodes:]
+        elcoor = nodes[node_el, 1:-dim_problem]
+        kloc, _ = uel_func(elcoor, params)
 
-        node_el = els[el, -4:]
         U_el = UC[node_el]
-        U_el = np.reshape(U_el, (8,1))
+        U_el = np.reshape(U_el, (nnodes*dim_problem ,1))
         a_i = 0.5 * U_el.T.dot(kloc.dot(U_el))[0,0]
         sensi_number.append(a_i)
     sensi_number = np.array(sensi_number)
@@ -128,7 +128,7 @@ def sensitivity_elsBESO(nodes, mats, els, mask, UC):
 
     return sensi_number
 
-def adjacency_nodes(nodes, els):
+def adjacency_nodes(nodes, els, nnodes):
     """
     Create an adjacency matrix for the elements connected to each node.
     
@@ -146,7 +146,7 @@ def adjacency_nodes(nodes, els):
     """
     adj_nodes = []
     for n in nodes[:, 0]:
-        adj_els = np.argwhere(els[:, -4:] == n)[:,0]
+        adj_els = np.argwhere(els[:, -nnodes:] == n)[:,0]
         adj_nodes.append(adj_els)
     return adj_nodes
 
@@ -174,7 +174,7 @@ def center_els(nodes, els):
     centers = np.array(centers)
     return centers
 
-def sensitivity_nodes(nodes, adj_nodes, centers, sensi_els):
+def sensitivity_nodes(nodes, adj_nodes, centers, sensi_els, dim_problem):
     """
     Calculate the sensitivity of each node.
     
@@ -196,10 +196,10 @@ def sensitivity_nodes(nodes, adj_nodes, centers, sensi_els):
     """
     sensi_nodes = []
     for n in nodes:
-        connected_els = adj_nodes[int(n[0])]
+        connected_els = np.array(adj_nodes[int(n[0])], dtype=int)
         if connected_els.shape[0] > 1:
-            delta = centers[connected_els] - n[1:3]
-            r_ij = np.linalg.norm(delta, axis=1) # We can remove this line and just use a constant because the distance is always the same
+            delta = centers[connected_els] - n[1:-dim_problem]
+            r_ij = np.linalg.norm(delta, axis=1) 
             w_i = 1/(connected_els.shape[0] - 1) * (1 - r_ij/r_ij.sum())
             sensi = (w_i * sensi_els[connected_els]).sum(axis=0)
         else:
@@ -209,40 +209,65 @@ def sensitivity_nodes(nodes, adj_nodes, centers, sensi_els):
 
     return sensi_nodes
 
-def sensitivity_filter(nodes, centers, sensi_nodes, r_min):
+import numpy as np
+
+def sensitivity_filter(nodes, centers, sensi_nodes, r_min, dim_problem):
     """
-    Performe the sensitivity filter.
-    
+    Performs the sensitivity filter.
+
     Parameters
     ----------
     nodes : ndarray
-        Array with models nodes
-    sensi_nodes : ndarray
-        Array with nodal sensitivity
+        Array with the model's nodes.
+        Shape: (n_nodes, d) -- typically includes X, Y, Z coords, etc.
     centers : ndarray
-        Array with center of elements
-    r_min : ndarra
-        Minimum distance 
+        Array with the centers of the elements (where we want to compute the filtered sensitivity).
+        Shape: (n_elements, dim_problem)
+    sensi_nodes : ndarray
+        Array with nodal sensitivities.
+        Shape: (n_nodes, )
+    r_min : float
+        Minimum distance for the filter radius.
+    dim_problem : int
+        Number of spatial dimensions (e.g., 2 or 3).
         
     Returns
     -------
     sensi_els : ndarray
-        Sensitivity of each element with filter
+        Sensitivity of each element with the filter applied.
+        Shape: (n_elements, )
     """
     sensi_els = []
-    for i, c in enumerate(centers):
-        delta = nodes[:,1:3]-c
+    for c in centers:
+        delta = nodes[:, 1:-dim_problem] - c
         r_ij = np.linalg.norm(delta, axis=1)
         omega_i = (r_ij < r_min)
-        w = 1/(omega_i.sum() - 1) * (1 - r_ij[omega_i]/r_ij[omega_i].sum())
-        sensi_els.append((w*sensi_nodes[omega_i]).sum()/w.sum())
-        
+        n_omega = omega_i.sum() 
+
+        if n_omega == 0:
+            sensi_els.append(0.0)
+        elif n_omega == 1:
+            idx = np.where(omega_i)[0][0]
+            sensi_els.append(sensi_nodes[idx])
+        else:
+            # We can safely apply the original formula
+            w = 1.0 / (n_omega - 1) * (1.0 - r_ij[omega_i] / r_ij[omega_i].sum())
+            if np.isnan(w).any():
+                raise ValueError("NaN values found in w.")
+            filtered_sensi = (w * sensi_nodes[omega_i]).sum() / w.sum()
+            sensi_els.append(filtered_sensi)
+
     sensi_els = np.array(sensi_els)
-    sensi_els = sensi_els/sensi_els.max()
+
+    # Normalize by maximum for post-processing
+    max_val = np.max(sensi_els)  # Watch out for possible zero or negative max
+    if max_val > 0:
+        sensi_els /= max_val
 
     return sensi_els
 
-def sensitivity_elsESO(nodes, mats, els, UC):
+
+def sensitivity_elsESO(nodes, mats, els, UC, uel_func, nnodes, dim_problem):
     """
     Calculate the sensitivity number for each element.
     
@@ -263,14 +288,14 @@ def sensitivity_elsESO(nodes, mats, els, UC):
         Sensitivity number for each element.
     """   
     sensi_number = []
-    for el in range(len(els)):
-        params = tuple(mats[els[el, 2], :])
-        elcoor = nodes[els[el, -4:], 1:3]
-        kloc, _ = uel.elast_quad4(elcoor, params)
+    for el in els:
+        params = tuple(mats[el[2], :])
+        node_el = el[-nnodes:]
+        elcoor = nodes[node_el, 1:-dim_problem]
+        kloc, _ = uel_func(elcoor, params)
 
-        node_el = els[el, -4:]
         U_el = UC[node_el]
-        U_el = np.reshape(U_el, (8,1))
+        U_el = np.reshape(U_el, (nnodes*dim_problem ,1))
         a_i = 0.5 * U_el.T.dot(kloc.dot(U_el))[0,0]
         sensi_number.append(a_i)
     sensi_number = np.array(sensi_number)
@@ -498,4 +523,66 @@ def center_els(nodes, els):
         center = np.array([n[1,0] + (n[0,0] - n[1,0])/2, n[2,1] + (n[0,1] - n[2,1])/2])
         centers[int(el[0])] = center
 
+    return centers
+
+def calculate_element_centers(nodes, els, dim_problem=2, nnodes=4):
+    """
+    Calculate the center of each element for 2D and 3D meshes.
+    
+    Parameters
+    ----------
+    nodes : ndarray
+        Array of node coordinates with format [node number, x, y, z, BC].
+    els : ndarray
+        Array of elements with format [element number, material, node 1, node 2, ...].
+    dim_problem : int, optional
+        Dimension of the problem (2 for 2D, 3 for 3D). Default is 2.
+    nnodes : int, optional
+        Number of nodes per element. For 2D: 3 or 4, for 3D: 4 or 8. Default is 4.
+    
+    Returns
+    -------
+    centers : ndarray
+        Array containing the center coordinates of each element.
+        For 2D: shape (n_elements, 2)
+        For 3D: shape (n_elements, 3)
+    """
+    # Input validation
+    if dim_problem not in [2, 3]:
+        raise ValueError("dim_problem must be 2 or 3")
+    
+    valid_nnodes = {2: [3, 4], 3: [4, 8]}
+    if nnodes not in valid_nnodes[dim_problem]:
+        raise ValueError(f"For {dim_problem}D problems, nnodes must be {valid_nnodes[dim_problem]}")
+    
+    # Initialize centers array
+    n_elements = els.shape[0]
+    centers = np.zeros((n_elements, dim_problem))
+    
+    # Calculate center for each element
+    for el in els:
+        el_num = int(el[0])
+        # Get node indices (skip element number and material)
+        node_indices = el[2:2+nnodes].astype(int)
+        # Get coordinates of element nodes (exclude node number and BC)
+        node_coords = nodes[node_indices, 1:1+dim_problem]
+        
+        if dim_problem == 2:
+            if nnodes == 3:  # Triangle
+                # Centroid of triangle = average of vertices
+                center = np.mean(node_coords, axis=0)
+            else:  # Quadrilateral
+                # For quad elements, use the average of all vertices
+                center = np.mean(node_coords, axis=0)
+        
+        else:  # 3D
+            if nnodes == 4:  # Tetrahedron
+                # Centroid of tetrahedron = average of vertices
+                center = np.mean(node_coords, axis=0)
+            else:  # Hexahedron (8 nodes)
+                # For hex elements, use the average of all vertices
+                center = np.mean(node_coords, axis=0)
+        
+        centers[el_num] = center
+    
     return centers
