@@ -68,9 +68,9 @@ def volume(els, length, height, nx, ny):
     els : ndarray
         Array with models elements.
     length : ndarray
-        Length of the beam.
+        Length of the structure.
     height : ndarray
-        Height of the beam.
+        Height of the structure.
     nx : float
         Number of elements in x direction.
     ny : float

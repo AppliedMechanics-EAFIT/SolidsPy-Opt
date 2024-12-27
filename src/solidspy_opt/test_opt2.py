@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 from typing import List, Tuple, AnyStr
 from scipy.sparse.linalg import spsolve
 
-from utils.beams import * 
+from utils.structures import * 
 from utils.solver import * 
 from utils.volumes import * 
 
@@ -31,7 +31,7 @@ def ESO_stiff(
     nnodes: int = 4
 ) -> None:
     """
-    Performs Evolutionary Structural Optimization (ESO) based on stiff for a beam structure.
+    Performs Evolutionary Structural Optimization (ESO) based on stiff for a structure.
 
     Parameters
     ----------
@@ -188,7 +188,7 @@ load_directions = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])
 load_positions = np.array([[5, 5, 9], [1, 1, 9], [8, 8, 9]])
 
 # Call the function
-nodes, mats, els, loads, idx_BC = beam_3d(
+nodes, mats, els, loads, idx_BC = structure_3d(
     L=10, 
     H=10, 
     W=10, 
@@ -216,7 +216,7 @@ els, nodes, UC, E_nodes, S_nodes = ESO_stiff(
     nnodes=8)
 
 # %%
-nodes, mats, els, loads, idx_BC = beam(
+nodes, mats, els, loads, idx_BC = structures(
     L=60, 
     H=60, 
     nx=60, 

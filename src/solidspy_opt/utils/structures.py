@@ -1,16 +1,16 @@
 import numpy as np
 import solidspy.preprocesor as pre
 
-def beam(L=10, H=10, E=206.8e9, v=0.28, nx=20, ny=20, dirs=np.array([]), positions=np.array([]), n=1):
+def structures(L=10, H=10, E=206.8e9, v=0.28, nx=20, ny=20, dirs=np.array([]), positions=np.array([]), n=1):
     """
-    This function selects the appropriate beam function to call based on the value of n.
+    This function selects the appropriate structure function to call based on the value of n.
 
     Parameters
     ----------
     L : float, optional
-        Beam's length, by default 10
+        structure's length, by default 10
     H : float, optional
-        Beam's height, by default 10
+        structure's height, by default 10
     F : float, optional
         Vertical force, by default -1000000
     E : float, optional
@@ -22,30 +22,30 @@ def beam(L=10, H=10, E=206.8e9, v=0.28, nx=20, ny=20, dirs=np.array([]), positio
     ny : int, optional
         Number of elements in the y direction, by default 20
     n : int, optional
-        Selector for the beam function to call, by default 1
+        Selector for the structure function to call, by default 1
 
     Returns
     -------
     ndarray
-        Nodes array returned by the selected beam function
+        Nodes array returned by the selected structure function
     """
     match n:
         case 1:
-            return beam_1(L, H, E, v, nx, ny, dirs, positions)
+            return structure_1(L, H, E, v, nx, ny, dirs, positions)
         case 2:
-            return beam_2(L, H, E, v, nx, ny, dirs, positions)
+            return structure_2(L, H, E, v, nx, ny, dirs, positions)
 
 
-def beam_1(L=10, H=10, E=206.8e9, v=0.28, nx=20, ny=20, dirs=np.array([]), positions=np.array([])):
+def structure_1(L=10, H=10, E=206.8e9, v=0.28, nx=20, ny=20, dirs=np.array([]), positions=np.array([])):
     """
-    Make the mesh for a cuadrilateral model with cantilever beam's constrains.
+    Make the mesh for a cuadrilateral model with cantilever structure's constrains.
 
     Parameters
     ----------
     L : float, optional
-        Length of the beam, by default 10
+        Length of the structure, by default 10
     H : float, optional
-        Height of the beam, by default 10
+        Height of the structure, by default 10
     E : float, optional
         Young's modulus, by default 206.8e9
     v : float, optional
@@ -89,16 +89,16 @@ def beam_1(L=10, H=10, E=206.8e9, v=0.28, nx=20, ny=20, dirs=np.array([]), posit
     idx_BC = nodes[mask, 0]
     return nodes, mats, els, loads, idx_BC
 
-def beam_2(L=10, H=10, E=206.8e9, v=0.28, nx=20, ny=20, dirs=np.array([]), positions=np.array([])):
+def structure_2(L=10, H=10, E=206.8e9, v=0.28, nx=20, ny=20, dirs=np.array([]), positions=np.array([])):
     """
-    Make the mesh for a cuadrilateral model with simply supported beam's constrains.
+    Make the mesh for a cuadrilateral model with simply supported structure's constrains.
 
     Parameters
     ----------
     L : float, optional
-        Length of the beam, by default 10
+        Length of the structure, by default 10
     H : float, optional
-        Height of the beam, by default 10
+        Height of the structure, by default 10
     E : float, optional
         Young's modulus, by default 206.8e9
     v : float, optional
@@ -144,18 +144,18 @@ def beam_2(L=10, H=10, E=206.8e9, v=0.28, nx=20, ny=20, dirs=np.array([]), posit
     idx_BC = nodes[mask, 0]
     return nodes, mats, els, loads, idx_BC
 
-def beam_3d(L=10, H=10, W=10, E=206.8e9, v=0.28, nx=10, ny=10, nz=10, dirs=np.array([]), positions=np.array([])):
+def structure_3d(L=10, H=10, W=10, E=206.8e9, v=0.28, nx=10, ny=10, nz=10, dirs=np.array([]), positions=np.array([])):
     """
-    Make the mesh for a cubic model with cantilever beam constraints.
+    Make the mesh for a cubic model with cantilever structure constraints.
 
     Parameters
     ----------
     L : float, optional
-        Length of the beam (x-direction), by default 10
+        Length of the structure (x-direction), by default 10
     H : float, optional
-        Height of the beam (y-direction), by default 10
+        Height of the structure (y-direction), by default 10
     W : float, optional
-        Width of the beam (z-direction), by default 10
+        Width of the structure (z-direction), by default 10
     E : float, optional
         Young's modulus, by default 206.8e9
     v : float, optional
