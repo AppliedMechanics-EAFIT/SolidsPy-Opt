@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 from typing import List, Tuple, AnyStr
 from scipy.sparse.linalg import spsolve
 
-from solidspy_opt.utils.structures import * 
+from utils.structures import * 
 from utils.solver import * 
 from utils.volumes import * 
 
