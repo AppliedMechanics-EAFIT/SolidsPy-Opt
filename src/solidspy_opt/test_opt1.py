@@ -180,7 +180,7 @@ def ESO_stress(
         plt.tricontourf(tri, fill_plot, cmap='binary')
         plt.axis("image");
     elif plot and dim_problem == 3:
-        pos.fields_plot_3d(nodes, els, loads, idx_BC, S_nodes, E_nodes, nnodes=8, data_type='stress', show_BC=True, show_loads=True, arrow_scale=2.0, arrow_color="blue", cmap="viridis", show_axes=True, show_bounds=True, show_edges=False)
+        pos.fields_plot_3d(nodes, ELS, loads, idx_BC, S_nodes, E_nodes, nnodes=8, data_type='stress', show_BC=True, show_loads=True, arrow_scale=2.0, arrow_color="blue", cmap="viridis", show_axes=True, show_bounds=True, show_edges=False)
 
     return ELS, nodes, UC, E_nodes, S_nodes
 
@@ -217,15 +217,6 @@ els, nodes, UC, E_nodes, S_nodes = ESO_stress(
     plot=True,
     dim_problem=3, 
     nnodes=8)
-
-# System assembly
-# assem_op, IBC, neq = ass.DME(nodes[:, -3:], els, ndof_node=3, ndof_el_max=8*3)
-# stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-3], neq, assem_op, uel=uel.elast_hex8)
-# rhs_vec = ass.loadasem(loads, IBC, neq)
-# disp = spsolve(stiff_mat, rhs_vec)
-# UCI = pos.complete_disp(IBC, nodes, disp, ndof_node=3)
-# E_nodesI, S_nodesI = pos.strain_nodes_3d(nodes, els, mats[:,:2], UCI)
-# %%
 
 # %%
 nodes, mats, els, loads, idx_BC = beam(

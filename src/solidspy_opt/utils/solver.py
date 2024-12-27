@@ -3,7 +3,7 @@ from scipy.sparse import coo_matrix
 from scipy.spatial.distance import cdist
 import solidspy.uelutil as uel 
 
-def protect_els(els, nels, loads, BC):
+def protect_els(els, nels, loads, BC, nnodes):
     """
     Compute an mask array with the elements that don't must be deleted.
     
@@ -27,12 +27,12 @@ def protect_els(els, nels, loads, BC):
     protect_nodes = np.hstack((loads[:,0], BC)).astype(int)
     protect_index = None
     for p in protect_nodes:
-        protect_index = np.argwhere(els[:, -4:] == p)[:,0]
+        protect_index = np.argwhere(els[:, -nnodes:] == p)[:,0]
         mask_els[els[protect_index,0]] = True
         
     return mask_els
 
-def del_node(nodes, els, loads, BC):
+def del_node(nodes, els, loads, BC, dim_problem, nnodes):
     """
     Retricts nodes dof that aren't been used and free up the nodes that are in use.
     
@@ -52,10 +52,10 @@ def del_node(nodes, els, loads, BC):
     """   
     protect_nodes = np.hstack((loads[:,0], BC)).astype(int)
     for n in nodes[:,0]:
-        if n not in els[:, -4:]:
-            nodes[int(n), -2:] = -1
-        elif n not in protect_nodes and n in els[:, -4:]:
-            nodes[int(n), -2:] = 0
+        if n not in els[:, -nnodes:]:
+            nodes[int(n), -dim_problem:] = -1
+        elif n not in protect_nodes and n in els[:, -nnodes:]:
+            nodes[int(n), -dim_problem:] = 0
 
 
 def volume(els, length, height, nx, ny):
@@ -267,7 +267,7 @@ def sensitivity_filter(nodes, centers, sensi_nodes, r_min, dim_problem):
     return sensi_els
 
 
-def sensitivity_elsESO(nodes, mats, els, UC, uel_func, nnodes, dim_problem):
+def sensitivity_elsESO(nodes, mats, els, UC, uel_func, dim_problem, nnodes):
     """
     Calculate the sensitivity number for each element.
     
@@ -340,7 +340,7 @@ def strain_els(els, E_nodes, S_nodes):
     
     return E_els, S_els
 
-def protect_elsESO(els, loads, BC):
+def protect_elsESO(els, loads, BC, nnodes):
     """
     Compute an mask array with the elements that don't must be deleted.
     
@@ -362,7 +362,7 @@ def protect_elsESO(els, loads, BC):
     protect_nodes = np.hstack((loads[:,0], BC)).astype(int)
     protect_index = None
     for p in protect_nodes:
-        protect_index = np.argwhere(els[:, -4:] == p)[:,0]
+        protect_index = np.argwhere(els[:, -nnodes:] == p)[:,0]
         mask_els[protect_index] = False
         
     return mask_els

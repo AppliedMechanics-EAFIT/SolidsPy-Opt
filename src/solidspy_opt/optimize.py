@@ -164,7 +164,7 @@ def ESO_stress(
         # Remove/add elements
         RR_el = vons/vons.max() # Relative stress
         mask_del = RR_el < RR # Mask for elements to be deleted
-        mask_els = protect_elsESO(els, loads, idx_BC) # Mask of elements to do not remove
+        mask_els = protect_elsESO(els, loads, idx_BC, nnodes) # Mask of elements to do not remove
         mask_del *= mask_els  
         els = np.delete(els, mask_del, 0) # Delete elements
         del_nodeESO(nodes, els, nnodes, dim_problem) # Remove nodes
@@ -328,10 +328,10 @@ def ESO_stiff(
         E_nodes, S_nodes = pos.strain_nodes_3d(nodes, els, mats[:,:2], UC) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UC)
 
         # Compute Sensitivity number
-        sensi_number = sensitivity_elsESO(nodes, mats, els, UC, uel_func, nnodes, dim_problem) # Sensitivity number
+        sensi_number = sensitivity_elsESO(nodes, mats, els, UC, uel_func, dim_problem, nnodes) # Sensitivity number
         
         mask_del = sensi_number < RR # Mask of elements to be removed
-        mask_els = protect_elsESO(els, loads, idx_BC) # Mask of elements to do not remove
+        mask_els = protect_elsESO(els, loads, idx_BC, nnodes) # Mask of elements to do not remove
         mask_del *= mask_els # Mask of elements to be removed and not protected
         
         # Remove/add elements
@@ -473,12 +473,13 @@ def BESO(
     UCI = pos.complete_disp(IBC, nodes, disp, ndof_node=dim_problem)
     E_nodesI, S_nodesI = pos.strain_nodes_3d(nodes, els, mats[:,:2], UCI) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UCI)
 
-    r_min = np.linalg.norm(nodes[0,1:3] - nodes[1,1:3]) * 1 # Radius for the sensitivity filter
-    adj_nodes = adjacency_nodes(nodes, els) # Adjacency nodes
+    r_min = np.linalg.norm(nodes[0,1:-dim_problem] - nodes[1,1:-dim_problem]) * 1 # Radius for the sensitivity filter
+    adj_nodes = adjacency_nodes(nodes, els, nnodes) # Adjacency nodes
     centers = center_els(nodes, els) # Centers of elements
+    # centers = calculate_element_centers(nodes, els, dim_problem, nnodes)
 
-    Vi = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
-    V_opt = Vi * volfrac
+    V = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
+    V_opt = V * volfrac
 
     # Initialize variables.
     ELS = None
@@ -488,14 +489,13 @@ def BESO(
     error = 1000 
 
     for i in range(niter):
-        print("Number of elements: {}".format(els.shape[0]))
-
         # Calculate the optimal design array elements
         els_del = els[mask].copy() # Elements to be removed
-        V = calculate_mesh_area(nodes, els_del) # Volume of the structure
+
+        print("Number of elements: {}".format(els_del.shape[0]))
 
         # Check equilibrium
-        Vi = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
+        Vi = calculate_mesh_volume(nodes, els_del) if dim_problem==3 else calculate_mesh_area(nodes, els_del)
         if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or Vi < V_opt: 
             break
 
@@ -503,19 +503,19 @@ def BESO(
         ELS = els_del 
 
         # System assembly
-        assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
-        stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
+        assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els_del, ndof_el_max=nnodes*dim_problem)
+        stiff_mat, _ = ass.assembler(els_del, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
         rhs_vec = ass.loadasem(loads, IBC, neq)
 
         # System solution
         disp = spsolve(stiff_mat, rhs_vec)
         UC = pos.complete_disp(IBC, nodes, disp, ndof_node=dim_problem)
-        E_nodes, S_nodes = pos.strain_nodes_3d(nodes, els, mats[:,:2], UC) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UC)
+        E_nodes, S_nodes = pos.strain_nodes_3d(nodes, els_del, mats[:,:2], UC) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UC)
 
         # Sensitivity filter
-        sensi_e = sensitivity_elsBESO(nodes, mats, els, mask, UC) # Calculate the sensitivity of the elements
-        sensi_nodes = sensitivity_nodes(nodes, adj_nodes, centers, sensi_e) # Calculate the sensitivity of the nodes
-        sensi_number = sensitivity_filter(nodes, centers, sensi_nodes, r_min) # Perform the sensitivity filter
+        sensi_e = sensitivity_elsBESO(nodes, mats, els, mask, UC, uel_func, nnodes, dim_problem) # Calculate the sensitivity of the elements
+        sensi_nodes = sensitivity_nodes(nodes, adj_nodes, centers, sensi_e, dim_problem) # Calculate the sensitivity of the nodes
+        sensi_number = sensitivity_filter(nodes, centers, sensi_nodes, r_min, dim_problem) # Perform the sensitivity filter
 
         # Average the sensitivity numbers to the historical information 
         if i > 0: 
@@ -524,23 +524,23 @@ def BESO(
 
         # Check if the optimal volume is reached and calculate the next volume
         V_r = False
-        if V <= V_opt:
+        if Vi <= V_opt:
             els_k = els_del.shape[0]
             V_r = True
             break
         else:
-            V_k = V * (1 + ER) if V < V_opt else V * (1 - ER)
+            V_k = Vi * (1 + ER) if Vi < V_opt else Vi * (1 - ER)
 
         # Remove/add threshold
         sensi_sort = np.sort(sensi_number)[::-1] # Sort the sensitivity numbers
-        els_k = els_del.shape[0]*V_k/V # Number of elements to be removed
+        els_k = els_del.shape[0]*V_k/Vi # Number of elements to be removed
         alpha_del = sensi_sort[int(els_k)] # Threshold for removing elements
 
         # Remove/add elements
         mask = sensi_number > alpha_del # Mask of elements to be removed
-        mask_els = protect_els(els[np.invert(mask)], els.shape[0], loads, idx_BC) # Mask of elements to be protected
+        mask_els = protect_els(els[np.invert(mask)], els.shape[0], loads, idx_BC, nnodes) # Mask of elements to be protected
         mask = np.bitwise_or(mask, mask_els) 
-        del_node(nodes, els[mask], loads, idx_BC) # Delete nodes
+        del_node(nodes, els[mask], loads, idx_BC, dim_problem, nnodes) # Delete nodes
 
         # Calculate the strain energy and storage it 
         C = 0.5*rhs_vec.T@disp
@@ -555,7 +555,7 @@ def BESO(
         # Save the sensitvity number for the next iteration
         sensi_I = sensi_number.copy()
 
-    if plot:
+    if plot and dim_problem == 2:
         pos.fields_plot(elsI, nodes, UCI, E_nodes=E_nodesI, S_nodes=S_nodesI) # Plot initial mesh
         pos.fields_plot(ELS, nodes, UC, E_nodes=E_nodes, S_nodes=S_nodes) # Plot optimized mesh
 
@@ -564,6 +564,8 @@ def BESO(
         tri = pos.mesh2tri(nodes, ELS)
         plt.tricontourf(tri, fill_plot, cmap='binary')
         plt.axis("image");
+    elif plot and dim_problem == 3:
+        pos.fields_plot_3d(nodes, ELS, loads, idx_BC, S_nodes, E_nodes, nnodes=8, data_type='stress', show_BC=True, show_loads=True, arrow_scale=2.0, arrow_color="blue", cmap="viridis", show_axes=True, show_bounds=True, show_edges=False)
 
     return ELS, nodes, UC, E_nodes, S_nodes
 

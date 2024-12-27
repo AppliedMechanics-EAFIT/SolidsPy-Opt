@@ -162,14 +162,14 @@ def BESO(
         ELS = els_del 
 
         # System assembly
-        assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
-        stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
+        assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els_del, ndof_el_max=nnodes*dim_problem)
+        stiff_mat, _ = ass.assembler(els_del, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
         rhs_vec = ass.loadasem(loads, IBC, neq)
 
         # System solution
         disp = spsolve(stiff_mat, rhs_vec)
         UC = pos.complete_disp(IBC, nodes, disp, ndof_node=dim_problem)
-        E_nodes, S_nodes = pos.strain_nodes_3d(nodes, els, mats[:,:2], UC) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UC)
+        E_nodes, S_nodes = pos.strain_nodes_3d(nodes, els_del, mats[:,:2], UC) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UC)
 
         # Sensitivity filter
         sensi_e = sensitivity_elsBESO(nodes, mats, els, mask, UC, uel_func, nnodes, dim_problem) # Calculate the sensitivity of the elements
@@ -192,14 +192,14 @@ def BESO(
 
         # Remove/add threshold
         sensi_sort = np.sort(sensi_number)[::-1] # Sort the sensitivity numbers
-        els_k = els_del.shape[0]*V_k/V # Number of elements to be removed
+        els_k = els_del.shape[0]*V_k/Vi # Number of elements to be removed
         alpha_del = sensi_sort[int(els_k)] # Threshold for removing elements
 
         # Remove/add elements
         mask = sensi_number > alpha_del # Mask of elements to be removed
-        mask_els = protect_els(els[np.invert(mask)], els.shape[0], loads, idx_BC) # Mask of elements to be protected
+        mask_els = protect_els(els[np.invert(mask)], els.shape[0], loads, idx_BC, nnodes) # Mask of elements to be protected
         mask = np.bitwise_or(mask, mask_els) 
-        del_node(nodes, els[mask], loads, idx_BC) # Delete nodes
+        del_node(nodes, els[mask], loads, idx_BC, dim_problem, nnodes) # Delete nodes
 
         # Calculate the strain energy and storage it 
         C = 0.5*rhs_vec.T@disp
@@ -262,13 +262,6 @@ els, nodes, UC, E_nodes, S_nodes = BESO(
     dim_problem=3, 
     nnodes=8)
 
-# # System assembly
-# assem_op, IBC, neq = ass.DME(nodes[:, -3:], els, ndof_node=3, ndof_el_max=8*3)
-# stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-3], neq, assem_op, uel=uel.elast_hex8)
-# rhs_vec = ass.loadasem(loads, IBC, neq)
-# disp = spsolve(stiff_mat, rhs_vec)
-# UCI = pos.complete_disp(IBC, nodes, disp, ndof_node=3)
-# E_nodesI, S_nodesI = pos.strain_nodes_3d(nodes, els, mats[:,:2], UCI)
 # %%
 nodes, mats, els, loads, idx_BC = beam(
     L=60, 
@@ -279,17 +272,16 @@ nodes, mats, els, loads, idx_BC = beam(
     positions=np.array([[15, 1]]), 
     n=1)
 
-els, nodes, UC = ESO_stiff(
+els, nodes, UC, E_nodes, S_nodes = BESO(
     nodes=nodes, 
     els=els, 
     mats=mats, 
     loads=loads, 
     idx_BC=idx_BC, 
     niter=200, 
-    RR=0.0001, 
-    ER=0.001, 
+    t=0.0001, 
+    ER=0.005, 
     volfrac=0.5, 
-    plot=True,
+    plot=False,
     dim_problem=2, 
     nnodes=4)
-# %%
