@@ -122,7 +122,7 @@ def ESO_stiff(
     elsI= np.copy(els)
 
     # System assembly
-    assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+    assem_op, IBC, neq = ass.node2dof(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
     stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
     rhs_vec = ass.loadasem(loads, IBC, neq)
 
@@ -147,7 +147,7 @@ def ESO_stiff(
         ELS = els
         
         # System assembly
-        assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+        assem_op, IBC, neq = ass.node2dof(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
         stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
         rhs_vec = ass.loadasem(loads, IBC, neq)
 
