@@ -16,8 +16,6 @@ import solidspy.postprocesor as pos
 import solidspy.uelutil as uel 
 np.seterr(divide='ignore', invalid='ignore')
 
-# %%
-
 def ESO_stress(
     nodes: NDArray[np.float64], 
     els: NDArray[np.int_], 
@@ -144,7 +142,8 @@ def ESO_stress(
         Vi = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
         if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or Vi < V_opt: 
             break
-
+        
+        # Storage the solution
         ELS = els
         
         # System assembly
@@ -163,7 +162,7 @@ def ESO_stress(
         # Remove/add elements
         RR_el = vons/vons.max() # Relative stress
         mask_del = RR_el < RR # Mask for elements to be deleted
-        mask_els = protect_elsESO(els, loads, idx_BC) # Mask of elements to do not remove
+        mask_els = protect_elsESO(els, loads, idx_BC, nnodes) # Mask of elements to do not remove
         mask_del *= mask_els  
         els = np.delete(els, mask_del, 0) # Delete elements
         del_nodeESO(nodes, els, nnodes, dim_problem) # Remove nodes

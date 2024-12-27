@@ -142,6 +142,9 @@ def ESO_stiff(
         Vi = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
         if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()) or Vi < V_opt: 
             break
+
+        # Storage the solution
+        ELS = els
         
         # System assembly
         assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
@@ -154,12 +157,11 @@ def ESO_stiff(
         E_nodes, S_nodes = pos.strain_nodes_3d(nodes, els, mats[:,:2], UC) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UC)
 
         # Compute Sensitivity number
-        sensi_number = sensitivity_elsESO(nodes, mats, els, UC, uel_func, nnodes, dim_problem) # Sensitivity number
+        sensi_number = sensitivity_elsESO(nodes, mats, els, UC, uel_func, dim_problem, nnodes) # Sensitivity number
         
         mask_del = sensi_number < RR # Mask of elements to be removed
-        mask_els = protect_elsESO(els, loads, idx_BC) # Mask of elements to do not remove
+        mask_els = protect_elsESO(els, loads, idx_BC, nnodes) # Mask of elements to do not remove
         mask_del *= mask_els # Mask of elements to be removed and not protected
-        ELS = els # Save last iteration elements
         
         # Remove/add elements
         els = np.delete(els, mask_del, 0) # Remove elements
@@ -208,8 +210,8 @@ els, nodes, UC, E_nodes, S_nodes = ESO_stiff(
     loads=loads, 
     idx_BC=idx_BC, 
     niter=200, 
-    RR=0.005, 
-    ER=0.05, 
+    RR=0.0001, 
+    ER=0.001, 
     volfrac=0.5, 
     plot=True,
     dim_problem=3, 
@@ -225,7 +227,7 @@ nodes, mats, els, loads, idx_BC = structures(
     positions=np.array([[15, 1]]), 
     n=1)
 
-els, nodes, UC = ESO_stiff(
+els, nodes, UC, E_nodes, S_nodes = ESO_stiff(
     nodes=nodes, 
     els=els, 
     mats=mats, 
