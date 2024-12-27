@@ -25,6 +25,7 @@ def SIMP(
     niter: int, 
     penal: float, 
     volfrac: float, 
+    dimensions: List[int]=None,
     plot: bool = False,
     dim_problem: int = 2,
     nnodes: int = 4
@@ -46,16 +47,16 @@ def SIMP(
         - rho is the density.
     loads : ndarray
         Array of elements with the format [node number, X load magnitud, Y load magnitud, Z load magnitud].
+    idx_BC : ndarray
+        Array of boundary conditions.
     niter : int
         Number of iterations for the SIMP process.
     penal : float
         Penalization factor used to enforce material stiffness in intermediate densities.
     volfrac : float
-        Target volume fraction for the optimized structure, expressed as a fraction of the initial volume.
-    plot : bool, optional
-        If True, plot the initial and optimized meshes. Defaults to False.
-    dim_problem : int, optional
-        Dimension of the problem (2 for 2D, 3 for 3D). Default is 2.
+        Target volume fraction for
+    dimensions : list
+        List of dimensions of the problem. Only need it for 2D problems. [nx, ny].
     nnodes : int, optional
         Number of nodes per element. For 2D problems it can be 3 or 4 and for 3D problems 4 or 8. Default is 4.
 
@@ -99,6 +100,7 @@ def SIMP(
 
     uel_func = None
     if dim_problem == 2:
+        assert dimensions is not None, "For 2D problems, the dimensions parameter cannot be None"
         if nnodes == 3:
             uel_func = uel.elast_tri3
         else:
@@ -108,6 +110,18 @@ def SIMP(
             uel_func = uel.elast_tet4
         else:
             uel_func = uel.elast_hex8
+
+    elsI = np.copy(els)
+
+    # System assembly
+    assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+    stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
+    rhs_vec = ass.loadasem(loads, IBC, neq)
+
+    # System solution
+    disp = spsolve(stiff_mat, rhs_vec)
+    UCI = pos.complete_disp(IBC, nodes, disp, ndof_node=dim_problem)
+    E_nodesI, S_nodesI = pos.strain_nodes_3d(nodes, els, mats[:,:2], UCI) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UCI)
 
     # Initialize variables
     Emin=1e-9 # Minimum young modulus of the material
@@ -168,14 +182,19 @@ def SIMP(
         if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()):
             break
 
-    # if plot:
-    #     plt.ion() 
-    #     fig,ax = plt.subplots()
-    #     ax.imshow(-rho.reshape(nx,ny), cmap='gray', interpolation='none',norm=colors.Normalize(vmin=-1,vmax=0))
-    #     ax.set_title('Predicted')
-    #     fig.show()
+    if plot and dim_problem == 2:
+        pos.fields_plot(elsI, nodes, UCI, E_nodes=E_nodesI, S_nodes=S_nodesI) # Plot initial mesh
+        pos.fields_plot(els, nodes, UC, E_nodes=E_nodes, S_nodes=S_nodes) # Plot optimized mesh
 
-    return rho
+        plt.ion() 
+        fig,ax = plt.subplots()
+        ax.imshow(-rho.reshape(dimensions[0], dimensions[1]), cmap='gray', interpolation='none',norm=colors.Normalize(vmin=-1,vmax=0))
+        ax.set_title('Predicted')
+        fig.show()
+    elif plot and dim_problem == 3:
+        pos.fields_plot_3d(nodes, els, loads, idx_BC, S_nodes, E_nodes, rho=rho, nnodes=8, data_type='stress', show_BC=True, show_loads=True, arrow_scale=2.0, arrow_color="blue", cmap="viridis", show_axes=True, show_bounds=True, show_edges=False)
+
+    return rho, nodes, UC, E_nodes, S_nodes
 
 # %%
 # load_directions = np.array([[0, 1, 0]])
@@ -197,7 +216,7 @@ nodes, mats, els, loads, idx_BC = beam_3d(
     positions=load_positions
 )
 
-els, nodes, UC, E_nodes, S_nodes = SIMP(
+rho, nodes, UC, E_nodes, S_nodes = SIMP(
     nodes=nodes, 
     els=els, 
     mats=mats, 
@@ -220,16 +239,16 @@ nodes, mats, els, loads, idx_BC = beam(
     positions=np.array([[15, 1]]), 
     n=1)
 
-els, nodes, UC, E_nodes, S_nodes = BESO(
+rho, nodes, UC, E_nodes, S_nodes = SIMP(
     nodes=nodes, 
     els=els, 
     mats=mats, 
     loads=loads, 
     idx_BC=idx_BC, 
     niter=200, 
-    t=0.0001, 
-    ER=0.005, 
+    penal=3, 
     volfrac=0.5, 
+    dimensions=[60, 60],
     plot=True,
     dim_problem=2, 
     nnodes=4)

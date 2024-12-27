@@ -576,9 +576,11 @@ def SIMP(
     els: NDArray[np.int_], 
     mats: NDArray[np.float64], 
     loads: NDArray[np.float64], 
+    idx_BC: NDArray[np.float64], 
     niter: int, 
     penal: float, 
     volfrac: float, 
+    dimensions: List[int]=None,
     plot: bool = False,
     dim_problem: int = 2,
     nnodes: int = 4
@@ -600,16 +602,16 @@ def SIMP(
         - rho is the density.
     loads : ndarray
         Array of elements with the format [node number, X load magnitud, Y load magnitud, Z load magnitud].
+    idx_BC : ndarray
+        Array of boundary conditions.
     niter : int
         Number of iterations for the SIMP process.
     penal : float
         Penalization factor used to enforce material stiffness in intermediate densities.
     volfrac : float
-        Target volume fraction for the optimized structure, expressed as a fraction of the initial volume.
-    plot : bool, optional
-        If True, plot the initial and optimized meshes. Defaults to False.
-    dim_problem : int, optional
-        Dimension of the problem (2 for 2D, 3 for 3D). Default is 2.
+        Target volume fraction for
+    dimensions : list
+        List of dimensions of the problem. Only need it for 2D problems. [nx, ny].
     nnodes : int, optional
         Number of nodes per element. For 2D problems it can be 3 or 4 and for 3D problems 4 or 8. Default is 4.
 
@@ -653,6 +655,7 @@ def SIMP(
 
     uel_func = None
     if dim_problem == 2:
+        assert dimensions is not None, "For 2D problems, the dimensions parameter cannot be None"
         if nnodes == 3:
             uel_func = uel.elast_tri3
         else:
@@ -663,6 +666,18 @@ def SIMP(
         else:
             uel_func = uel.elast_hex8
 
+    elsI = np.copy(els)
+
+    # System assembly
+    assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+    stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
+    rhs_vec = ass.loadasem(loads, IBC, neq)
+
+    # System solution
+    disp = spsolve(stiff_mat, rhs_vec)
+    UCI = pos.complete_disp(IBC, nodes, disp, ndof_node=dim_problem)
+    E_nodesI, S_nodesI = pos.strain_nodes_3d(nodes, els, mats[:,:2], UCI) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UCI)
+
     # Initialize variables
     Emin=1e-9 # Minimum young modulus of the material
     Emax=1.0 # Maximum young modulus of the material
@@ -670,26 +685,14 @@ def SIMP(
     # Initialize the design variables
     change = 10 # Change in the design variable
     g = 0 # Constraint
-    rho = 0.5 * np.ones(ny*nx, dtype=float) # Initialize the density
-    sensi_rho = np.ones(ny*nx) # Initialize the sensitivity
+    nels = els.shape[0] # Number of elements
+    rho = 0.5 * np.ones(nels, dtype=float) # Initialize the density
+    sensi_rho = np.ones(nels) # Initialize the sensitivity
     rho_old = rho.copy() # Initialize the density history
-    d_c = np.ones(ny*nx) # Initialize the design change
+    d_c = np.ones(nels) # Initialize the design change
 
-    r_min = np.linalg.norm(nodes[0,1:3] - nodes[1,1:3]) * 4 # Radius for the sensitivity filter
-    centers = center_els(nodes, els) # Calculate centers
-
-    E = mats[0,0] # Young modulus
-    nu = mats[0,1] # Poisson ratio
-    k = np.array([1/2-nu/6,1/8+nu/8,-1/4-nu/12,-1/8+3*nu/8,-1/4+nu/12,-1/8-nu/8,nu/6,1/8-3*nu/8]) # Coefficients
-    kloc = E/(1-nu**2)*np.array([ [k[0], k[1], k[2], k[3], k[4], k[5], k[6], k[7]], 
-    [k[1], k[0], k[7], k[6], k[5], k[4], k[3], k[2]],
-    [k[2], k[7], k[0], k[5], k[6], k[3], k[4], k[1]],
-    [k[3], k[6], k[5], k[0], k[7], k[2], k[1], k[4]],
-    [k[4], k[5], k[6], k[7], k[0], k[1], k[2], k[3]],
-    [k[5], k[4], k[3], k[2], k[1], k[0], k[7], k[6]],
-    [k[6], k[3], k[4], k[1], k[2], k[7], k[0], k[5]],
-    [k[7], k[2], k[1], k[4], k[3], k[6], k[5], k[0]]]); # Local stiffness matrix
-    assem_op, bc_array, neq = ass.DME(nodes[:, -2:], els, ndof_el_max=8) 
+    r_min = np.linalg.norm(nodes[0,1:-dim_problem] - nodes[1,1:-dim_problem]) * 4 # Radius for the sensitivity filter
+    centers = calculate_element_centers(nodes, els, dim_problem, nnodes)
 
     iter = 0
     for _ in range(niter):
@@ -700,41 +703,50 @@ def SIMP(
             print('Convergence reached')
             break
 
-
         # Change density 
         mats[:,2] = Emin+rho**penal*(Emax-Emin)
 
         # System assembly
-        stiff_mat = sparse_assem(els, mats, neq, assem_op, kloc)
-        rhs_vec = ass.loadasem(loads, bc_array, neq)
+        assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+        # stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
+        stiff_mat = sparse_assem(els, nodes, mats, neq, assem_op, dim_problem, uel=uel_func)
+        rhs_vec = ass.loadasem(loads, IBC, neq)
 
         # System solution
         disp = spsolve(stiff_mat, rhs_vec)
-        UC = pos.complete_disp(bc_array, nodes, disp)
+        UC = pos.complete_disp(IBC, nodes, disp, ndof_node=dim_problem)
+        E_nodes, S_nodes = pos.strain_nodes_3d(nodes, els, mats[:,:2], UC) if dim_problem==3 else pos.strain_nodes(nodes, els, mats[:,:2], UC)
 
         compliance = rhs_vec.T.dot(disp)
 
         # Sensitivity analysis
-        sensi_rho[:] = (np.dot(UC[els[:,-4:]].reshape(nx*ny,8),kloc) * UC[els[:,-4:]].reshape(nx*ny,8) ).sum(1)
+        # sensi_rho[:] = (np.dot(UC[els[:,-nnodes:]].reshape(els.shape[0],nnodes*dim_problem),kloc) * UC[els[:,-4:]].reshape(els.shape[0],nnodes*dim_problem) ).sum(1)
+        sensi_rho = sensitivity_elsSIMP(nodes, mats, els, UC, uel_func, nnodes, dim_problem)
         d_c[:] = (-penal*rho**(penal-1)*(Emax-Emin))*sensi_rho
         d_c[:] = density_filter(centers, r_min, rho, d_c)
 
         # Optimality criteria
         rho_old[:] = rho
-        rho[:], g = optimality_criteria(nx, ny, rho, d_c, g)
+        rho[:], g = optimality_criteria(nels, rho, d_c, g)
 
         # Compute the change
-        change = np.linalg.norm(rho.reshape(nx*ny,1)-rho_old.reshape(nx*ny,1),np.inf)
+        change = np.linalg.norm(rho.reshape(nels,1)-rho_old.reshape(nels,1),np.inf)
+        print(change)
 
         # Check equilibrium
         if not np.allclose(stiff_mat.dot(disp)/stiff_mat.max(), rhs_vec/stiff_mat.max()):
             break
 
-    if plot:
+    if plot and dim_problem == 2:
+        pos.fields_plot(elsI, nodes, UCI, E_nodes=E_nodesI, S_nodes=S_nodesI) # Plot initial mesh
+        pos.fields_plot(els, nodes, UC, E_nodes=E_nodes, S_nodes=S_nodes) # Plot optimized mesh
+
         plt.ion() 
         fig,ax = plt.subplots()
-        ax.imshow(-rho.reshape(nx,ny), cmap='gray', interpolation='none',norm=colors.Normalize(vmin=-1,vmax=0))
+        ax.imshow(-rho.reshape(dimensions[0], dimensions[1]), cmap='gray', interpolation='none',norm=colors.Normalize(vmin=-1,vmax=0))
         ax.set_title('Predicted')
         fig.show()
+    elif plot and dim_problem == 3:
+        pos.fields_plot_3d(nodes, els, loads, idx_BC, S_nodes, E_nodes, rho=rho, nnodes=8, data_type='stress', show_BC=True, show_loads=True, arrow_scale=2.0, arrow_color="blue", cmap="viridis", show_axes=True, show_bounds=True, show_edges=False)
 
-    return rho
+    return rho, nodes, UC, E_nodes, S_nodes
