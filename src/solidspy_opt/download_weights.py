@@ -1,11 +1,13 @@
 import requests
 import os
 
-ARTICLE_ID = 28071419
+ARTICLE_ID_CNN = 28100180
+ARTICLE_ID_VIT = 28071419
+ARTICLE_ID_UNN = 28100201
 BASE_URL = 'https://api.figshare.com/v2'
-DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
+DATA_DIR = os.path.join(os.path.dirname(__file__), 'weights')
 
-def download_figshare_weights():
+def download_figshare_weights(ARTICLE_ID):
     os.makedirs(DATA_DIR, exist_ok=True)
 
     response = requests.get(f'{BASE_URL}/articles/{ARTICLE_ID}')
@@ -27,4 +29,6 @@ def download_figshare_weights():
         print(f'Successfully downloaded {file_name}')
 
 if __name__ == '__main__':
-    download_figshare_weights()
+    download_figshare_weights(ARTICLE_ID=ARTICLE_ID_CNN)
+    download_figshare_weights(ARTICLE_ID=ARTICLE_ID_VIT)
+    download_figshare_weights(ARTICLE_ID=ARTICLE_ID_UNN)
