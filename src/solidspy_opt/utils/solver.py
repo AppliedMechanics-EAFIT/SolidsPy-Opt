@@ -725,7 +725,7 @@ def calculate_element_centers(
 
     for el in els:
         el_num = int(el[0])
-        node_coords = nodes[els[0,-nnodes:], 1:-dim_problem]
+        node_coords = nodes[el[-nnodes:], 1:-dim_problem]
 
         if dim_problem == 2:
             # Triangles or quads
