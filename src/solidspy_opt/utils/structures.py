@@ -1,18 +1,26 @@
 import numpy as np
 import solidspy.preprocesor as pre
 
-def structures(L=10, H=10, E=206.8e9, v=0.28, nx=20, ny=20, dirs=np.array([]), positions=np.array([]), n=1):
+def structures(
+    L: float = 10,
+    H: float = 10,
+    E: float = 206.8e9,
+    v: float = 0.28,
+    nx: int = 20,
+    ny: int = 20,
+    dirs: np.ndarray = np.array([]),
+    positions: np.ndarray = np.array([]),
+    n: int = 1
+):
     """
-    This function selects the appropriate structure function to call based on the value of n.
+    This function selects the appropriate structure function to call based on n.
 
     Parameters
     ----------
     L : float, optional
-        structure's length, by default 10
+        Structure's length, by default 10
     H : float, optional
-        structure's height, by default 10
-    F : float, optional
-        Vertical force, by default -1000000
+        Structure's height, by default 10
     E : float, optional
         Young's modulus, by default 206.8e9
     v : float, optional
@@ -21,19 +29,34 @@ def structures(L=10, H=10, E=206.8e9, v=0.28, nx=20, ny=20, dirs=np.array([]), p
         Number of elements in the x direction, by default 20
     ny : int, optional
         Number of elements in the y direction, by default 20
+    dirs : np.ndarray, optional
+        Directions of the loads, default np.array([])
+    positions : np.ndarray, optional
+        Positions of the loads, default np.array([])
     n : int, optional
         Selector for the structure function to call, by default 1
 
     Returns
     -------
-    ndarray
-        Nodes array returned by the selected structure function
+    nodes, mats, els, loads, idx_BC
+        The outputs returned by the selected structure function.
     """
-    match n:
-        case 1:
-            return structure_1(L, H, E, v, nx, ny, dirs, positions)
-        case 2:
-            return structure_2(L, H, E, v, nx, ny, dirs, positions)
+    structure_map = {
+        1: structure_1,
+        2: structure_2,
+        # If you had more, you could add them here,
+        # 3: structure_3, etc.
+    }
+
+    if n not in structure_map:
+        raise ValueError(
+            f"Invalid structure ID: {n}. "
+            f"Available structures are: {list(structure_map.keys())}"
+        )
+
+    # Call the function corresponding to 'n'
+    return structure_map[n](L, H, E, v, nx, ny, dirs, positions)
+
 
 
 def structure_1(L=10, H=10, E=206.8e9, v=0.28, nx=20, ny=20, dirs=np.array([]), positions=np.array([])):
