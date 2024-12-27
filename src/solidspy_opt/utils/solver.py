@@ -6,7 +6,6 @@ from scipy.spatial.distance import cdist
 import solidspy.uelutil as uel
 import solidspy.assemutil as ass
 
-
 def protect_els(
     els: NDArray[np.float64],
     nels: int,
@@ -726,8 +725,7 @@ def calculate_element_centers(
 
     for el in els:
         el_num = int(el[0])
-        node_indices = el[2 : 2 + nnodes].astype(int)
-        node_coords = nodes[node_indices, 1 : 1 + dim_problem]
+        node_coords = nodes[els[0,-nnodes:], 1:-dim_problem]
 
         if dim_problem == 2:
             # Triangles or quads

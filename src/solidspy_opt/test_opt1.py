@@ -227,7 +227,7 @@ nodes, mats, els, loads, idx_BC = structures(
     positions=np.array([[15, 1]]), 
     n=1)
 
-els, nodes, UC = ESO_stress(
+els, nodes, UC, E_nodes, S_nodes = ESO_stress(
     nodes=nodes, 
     els=els, 
     mats=mats, 

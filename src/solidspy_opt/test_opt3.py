@@ -134,7 +134,6 @@ def BESO(
 
     r_min = np.linalg.norm(nodes[0,1:-dim_problem] - nodes[1,1:-dim_problem]) * 1 # Radius for the sensitivity filter
     adj_nodes = adjacency_nodes(nodes, els, nnodes) # Adjacency nodes
-    # centers = center_els(nodes, els) # Centers of elements
     centers = calculate_element_centers(nodes, els, dim_problem, nnodes)
 
     V = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
@@ -282,6 +281,6 @@ els, nodes, UC, E_nodes, S_nodes = BESO(
     t=0.0001, 
     ER=0.005, 
     volfrac=0.5, 
-    plot=True,
+    plot=False,
     dim_problem=2, 
     nnodes=4)
