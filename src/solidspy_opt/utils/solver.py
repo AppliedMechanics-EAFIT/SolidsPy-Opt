@@ -2,6 +2,7 @@ import numpy as np
 from scipy.sparse import coo_matrix
 from scipy.spatial.distance import cdist
 import solidspy.uelutil as uel 
+import solidspy.assemutil as ass 
 
 def protect_els(els, nels, loads, BC, nnodes):
     """
@@ -122,6 +123,44 @@ def sensitivity_elsBESO(nodes, mats, els, mask, UC, uel_func, nnodes, dim_proble
         U_el = UC[node_el]
         U_el = np.reshape(U_el, (nnodes*dim_problem ,1))
         a_i = 0.5 * U_el.T.dot(kloc.dot(U_el))[0,0]
+        sensi_number.append(a_i)
+    sensi_number = np.array(sensi_number)
+    sensi_number = sensi_number/sensi_number.max()
+
+    return sensi_number
+
+def sensitivity_elsSIMP(nodes, mats, els, UC, uel_func, nnodes, dim_problem):
+    """
+    Calculate the sensitivity number for each element.
+    
+    Parameters
+    ----------
+    nodes : ndarray
+        Array with models nodes
+    mats : ndarray
+        Array with models materials
+    els : ndarray
+        Array with models elements
+    mask : ndarray
+        Mask of optimal estructure
+    UC : ndarray
+        Displacements at nodes
+
+    Returns
+    -------
+    sensi_number : ndarray
+        Sensitivity number for each element.
+    """   
+    sensi_number = []
+    for el in els:
+        params = tuple(mats[el[2], :])
+        node_el = el[-nnodes:]
+        elcoor = nodes[node_el, 1:-dim_problem]
+        kloc, _ = uel_func(elcoor, params)
+
+        U_el = UC[node_el]
+        U_el = np.reshape(U_el, (nnodes*dim_problem ,1))
+        a_i = U_el.T.dot(kloc.dot(U_el))[0,0]
         sensi_number.append(a_i)
     sensi_number = np.array(sensi_number)
     sensi_number = sensi_number/sensi_number.max()
@@ -252,8 +291,6 @@ def sensitivity_filter(nodes, centers, sensi_nodes, r_min, dim_problem):
         else:
             # We can safely apply the original formula
             w = 1.0 / (n_omega - 1) * (1.0 - r_ij[omega_i] / r_ij[omega_i].sum())
-            if np.isnan(w).any():
-                raise ValueError("NaN values found in w.")
             filtered_sensi = (w * sensi_nodes[omega_i]).sum() / w.sum()
             sensi_els.append(filtered_sensi)
 
@@ -386,7 +423,7 @@ def del_nodeESO(nodes, els, nnodes, dim_problem):
         if n not in els[:, -nnodes:]:
             nodes[n, -dim_problem:] = -1
 
-def sparse_assem(elements, mats, neq, assem_op, kloc):
+def sparse_assem(elements, nodes, mats, neq, assem_op, dim_problem, uel):
     """
     Assembles the global stiffness matrix
     using a sparse storing scheme
@@ -417,6 +454,7 @@ def sparse_assem(elements, mats, neq, assem_op, kloc):
     stiff_vals = []
     nels = elements.shape[0]
     for ele in range(nels):
+        kloc, _ = ass.retriever(elements, mats, nodes[:, :-dim_problem], ele, uel=uel)
         kloc_ = kloc * mats[elements[ele, 0], 2]
         ndof = kloc.shape[0]
         dme = assem_op[ele, :ndof]
@@ -434,16 +472,14 @@ def sparse_assem(elements, mats, neq, assem_op, kloc):
 
     return stiff
     
-def optimality_criteria(nelx, nely, rho, d_c, g):
+def optimality_criteria(nel, rho, d_c, g):
     """
     Optimality criteria method.
 
     Parameters
     ----------
-    nelx : int
-        Number of elements in x direction.
-    nely : int
-        Number of elements in y direction.
+    nel : int
+        Number of elements.
     rho : ndarray
         Array with the density of each element.
     d_c : ndarray
@@ -461,7 +497,7 @@ def optimality_criteria(nelx, nely, rho, d_c, g):
     l1=0
     l2=1e9
     move=0.2
-    rho_new=np.zeros(nelx*nely)
+    rho_new=np.zeros(nel)
     while (l2-l1)/(l1+l2)>1e-3: 
         lmid=0.5*(l2+l1)
         rho_new[:]= np.maximum(0.0,np.maximum(rho-move,np.minimum(1.0,np.minimum(rho+move,rho*np.sqrt(-d_c/lmid)))))

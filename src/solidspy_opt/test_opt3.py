@@ -282,6 +282,6 @@ els, nodes, UC, E_nodes, S_nodes = BESO(
     t=0.0001, 
     ER=0.005, 
     volfrac=0.5, 
-    plot=False,
+    plot=True,
     dim_problem=2, 
     nnodes=4)
