@@ -5,9 +5,9 @@ from numpy.typing import NDArray
 from typing import List, Tuple, AnyStr
 from scipy.sparse.linalg import spsolve
 
-from utils.structures import * 
-from utils.solver import * 
-from utils.volumes import * 
+from solidspy_opt.utils.structures import * 
+from solidspy_opt.utils.solver import * 
+from solidspy_opt.utils.volumes import * 
 
 import solidspy.assemutil as ass 
 import solidspy.postprocesor as pos 

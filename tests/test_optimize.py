@@ -3,7 +3,7 @@ import numpy as np
 
 # Import your package and relevant functions
 from solidspy_opt.optimize import ESO_stress, ESO_stiff, BESO, SIMP
-from solidspy_opt.utils import structure_3d, structures
+from solidspy_opt.utils.structures import structure_3d, structures
 
 class TestSolidspyOpt(unittest.TestCase):
 
