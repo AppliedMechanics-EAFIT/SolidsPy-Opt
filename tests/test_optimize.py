@@ -15,7 +15,7 @@ class TestSolidspyOpt(unittest.TestCase):
         L, H = 8, 8
         nx, ny = 8, 8
         dirs = np.array([[0, -1]])  # single downward load
-        positions = np.array([[8, 1]])  # near top-right corner
+        positions = np.array([[4, 1]])  # near top-right corner
         nodes, mats, els, loads, idx_BC = structures(L=L, H=H, nx=nx, ny=ny, dirs=dirs, positions=positions, n=1)
 
         # Run a short ESO_stress optimization
@@ -83,7 +83,7 @@ class TestSolidspyOpt(unittest.TestCase):
         L, H = 8, 8
         nx, ny = 8, 8
         dirs = np.array([[0, -1]])  # single downward load
-        positions = np.array([[8, 1]])  # near top-right corner
+        positions = np.array([[4, 1]])  # near top-right corner
         nodes, mats, els, loads, idx_BC = structures(L=L, H=H, nx=nx, ny=ny, dirs=dirs, positions=positions, n=1)
 
         # Run a short ESO_stiff optimization
@@ -149,7 +149,7 @@ class TestSolidspyOpt(unittest.TestCase):
         L, H = 8, 8
         nx, ny = 8, 8
         dirs = np.array([[0, -1]])  # single downward load
-        positions = np.array([[8, 1]])  # near top-right corner
+        positions = np.array([[4, 1]])  # near top-right corner
         nodes, mats, els, loads, idx_BC = structures(L=L, H=H, nx=nx, ny=ny, dirs=dirs, positions=positions, n=1)
 
         # Run a short BESO optimization
@@ -213,7 +213,7 @@ class TestSolidspyOpt(unittest.TestCase):
         L, H = 8, 8
         nx, ny = 8, 8
         dirs = np.array([[0, -1]])  # single downward load
-        positions = np.array([[8, 1]])  # near top-right corner
+        positions = np.array([[4, 1]])  # near top-right corner
         nodes, mats, els, loads, idx_BC = structures(L=L, H=H, nx=nx, ny=ny, dirs=dirs, positions=positions, n=1)
 
         # Run SIMP for a few iterations
