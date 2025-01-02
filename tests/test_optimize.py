@@ -12,11 +12,11 @@ class TestSolidspyOpt(unittest.TestCase):
         Test ESO_stress in 2D with a small mesh.
         """
         # Create a tiny 2D structure
-        L, H = 2, 2
-        nx, ny = 2, 2
+        L, H = 8, 8
+        nx, ny = 8, 8
         dirs = np.array([[0, -1]])  # single downward load
-        positions = np.array([[1, 1]])  # near top-right corner
-        nodes, mats, els, loads, idx_BC = structures(L, H, nx, ny, dirs, positions, n=1)
+        positions = np.array([[8, 1]])  # near top-right corner
+        nodes, mats, els, loads, idx_BC = structures(L=L, H=H, nx=nx, ny=ny, dirs=dirs, positions=positions, n=1)
 
         # Run a short ESO_stress optimization
         ELS_opt, nodes_opt, UC, E_nodes, S_nodes = ESO_stress(
@@ -45,10 +45,10 @@ class TestSolidspyOpt(unittest.TestCase):
         Test ESO_stress in 3D with a small mesh.
         """
         # Create a tiny 3D structure
-        L = H = W = 2
-        nx = ny = nz = 2
+        L = H = W = 8
+        nx = ny = nz = 8
         dirs = np.array([[0, 0, -1]])   # single downward load
-        positions = np.array([[1, 1, 1]])  # near top corner
+        positions = np.array([[1, 1, 9]])  # near top corner
         nodes_3d, mats_3d, els_3d, loads_3d, idx_BC_3d = structure_3d(
             L, H, W, 2.0e5, 0.3, nx, ny, nz, dirs, positions
         )
@@ -80,11 +80,11 @@ class TestSolidspyOpt(unittest.TestCase):
         Test ESO_stiff in 2D with a small mesh.
         """
         # Create a tiny 2D structure
-        L, H = 2, 2
-        nx, ny = 2, 2
+        L, H = 8, 8
+        nx, ny = 8, 8
         dirs = np.array([[0, -1]])  # single downward load
-        positions = np.array([[1, 1]]) 
-        nodes, mats, els, loads, idx_BC = structures(L, H, nx, ny, dirs, positions, n=1)
+        positions = np.array([[8, 1]])  # near top-right corner
+        nodes, mats, els, loads, idx_BC = structures(L=L, H=H, nx=nx, ny=ny, dirs=dirs, positions=positions, n=1)
 
         # Run a short ESO_stiff optimization
         ELS_opt, nodes_opt, UC, E_nodes, S_nodes = ESO_stiff(
@@ -146,11 +146,11 @@ class TestSolidspyOpt(unittest.TestCase):
         """
         Test BESO in 2D with a small mesh.
         """
-        L, H = 2, 2
-        nx, ny = 2, 2
-        dirs = np.array([[0, -1]])  
-        positions = np.array([[1, 1]])  
-        nodes, mats, els, loads, idx_BC = structures(L, H, nx, ny, dirs, positions, n=1)
+        L, H = 8, 8
+        nx, ny = 8, 8
+        dirs = np.array([[0, -1]])  # single downward load
+        positions = np.array([[8, 1]])  # near top-right corner
+        nodes, mats, els, loads, idx_BC = structures(L=L, H=H, nx=nx, ny=ny, dirs=dirs, positions=positions, n=1)
 
         # Run a short BESO optimization
         ELS_opt, nodes_opt, UC, E_nodes, S_nodes = BESO(
@@ -210,11 +210,11 @@ class TestSolidspyOpt(unittest.TestCase):
         """
         Test SIMP in 2D with a small mesh.
         """
-        L, H = 2, 2
-        nx, ny = 2, 2
-        dirs = np.array([[0, -1]])  
-        positions = np.array([[1, 1]])  
-        nodes, mats, els, loads, idx_BC = structures(L, H, nx, ny, dirs, positions, n=1)
+        L, H = 8, 8
+        nx, ny = 8, 8
+        dirs = np.array([[0, -1]])  # single downward load
+        positions = np.array([[8, 1]])  # near top-right corner
+        nodes, mats, els, loads, idx_BC = structures(L=L, H=H, nx=nx, ny=ny, dirs=dirs, positions=positions, n=1)
 
         # Run SIMP for a few iterations
         rho, nodes_opt, UC, E_nodes, S_nodes = SIMP(
