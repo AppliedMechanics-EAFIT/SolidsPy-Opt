@@ -113,10 +113,10 @@ class TestSolidspyOpt(unittest.TestCase):
         Test ESO_stiff in 3D with a small mesh.
         """
         # Create a tiny 3D structure
-        L = H = W = 2
-        nx = ny = nz = 2
-        dirs = np.array([[0, 0, -1]])   
-        positions = np.array([[1, 1, 1]])  
+        L = H = W = 8
+        nx = ny = nz = 8
+        dirs = np.array([[0, 0, -1]])   # single downward load
+        positions = np.array([[1, 1, 9]])  # near top corner
         nodes_3d, mats_3d, els_3d, loads_3d, idx_BC_3d = structure_3d(
             L, H, W, 2.0e5, 0.3, nx, ny, nz, dirs, positions
         )
@@ -177,10 +177,10 @@ class TestSolidspyOpt(unittest.TestCase):
         """
         Test BESO in 3D with a small mesh.
         """
-        L = H = W = 2
-        nx = ny = nz = 2
-        dirs = np.array([[0, 0, -1]])   
-        positions = np.array([[1, 1, 1]])  
+        L = H = W = 8
+        nx = ny = nz = 8
+        dirs = np.array([[0, 0, -1]])   # single downward load
+        positions = np.array([[1, 1, 9]])  # near top corner
         nodes_3d, mats_3d, els_3d, loads_3d, idx_BC_3d = structure_3d(
             L, H, W, 2.0e5, 0.3, nx, ny, nz, dirs, positions
         )
@@ -241,10 +241,10 @@ class TestSolidspyOpt(unittest.TestCase):
         """
         Test SIMP in 3D with a small mesh.
         """
-        L = H = W = 2
-        nx = ny = nz = 2
-        dirs = np.array([[0, 0, -1]])   
-        positions = np.array([[1, 1, 1]])  
+        L = H = W = 8
+        nx = ny = nz = 8
+        dirs = np.array([[0, 1, 0]])   # single downward load
+        positions = np.array([[5, 5, 9]])  # near top corner
         nodes_3d, mats_3d, els_3d, loads_3d, idx_BC_3d = structure_3d(
             L, H, W, 2.0e5, 0.3, nx, ny, nz, dirs, positions
         )
