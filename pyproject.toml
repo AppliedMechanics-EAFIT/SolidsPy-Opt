@@ -28,7 +28,8 @@ dependencies = [
     "easygui",
     "meshio==5.3.5",
     "tensorflow",
-    "solidspy"
+    # "solidspy"
+    "pyvista" # PyPi test package
 ]
 
 [project.optional-dependencies]
@@ -38,7 +39,7 @@ dev = [
     "pytest-cov",
     "black",
     "flake8",
-    "solidspy",
+    # "solidspy",
     "numpy"
 ]
 
