@@ -1,5 +1,9 @@
 SolidsPy-Opt: 2D Topology Optimization with Python
 ==================================================
+.. image:: assets/anim1.gif
+   :alt: Texto alternativo (opcional)
+   :width: 500px (opcional)
+   :align: center (opcional)
 
 .. figure:: https://raw.githubusercontent.com/AppliedMechanics-EAFIT/SolidsPy/master/docs/img/wrench.png
    :alt: Wrench under bending.
