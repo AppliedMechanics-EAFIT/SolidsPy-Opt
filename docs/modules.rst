@@ -7,8 +7,8 @@ SolidsPy have the following modules:
    -  ``optimize.py``: Optimization algorithms;
 
 
-.. automodule:: models
+.. automodule:: solidspy_opt.models
    :members:
 
-.. automodule:: optimize
+.. automodule:: solidspy_opt.optimize
    :members:
