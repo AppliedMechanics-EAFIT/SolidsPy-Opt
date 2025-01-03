@@ -15,30 +15,8 @@ SolidsPy have the following modules:
    -  ``postprocesor.py``: Several results handling subroutines.
 
 
-.. automodule:: solids_GUI
+.. automodule:: models
    :members:
 
-.. automodule:: assemutil
+.. automodule:: optimize
    :members:
-
-.. automodule:: femutil
-   :members:
-
-.. automodule:: gaussutil
-   :members:
-
-.. automodule:: preprocesor
-   :members:
-
-.. automodule:: postprocesor
-   :members:
-
-.. automodule:: solutil
-   :members:
-
-.. automodule:: uelutil
-   :members:
-
-
-
-
