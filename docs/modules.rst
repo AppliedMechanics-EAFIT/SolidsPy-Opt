@@ -3,7 +3,7 @@ SolidsPy reference
 
 SolidsPy have the following modules:
 
-   -  ``modes.py``: Modal analysis subroutines;
+   -  ``models.py``: Modal analysis subroutines;
    -  ``optimize.py``: Optimization algorithms;
 
 
