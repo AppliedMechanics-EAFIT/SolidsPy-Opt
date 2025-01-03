@@ -1,5 +1,3 @@
-# %%
-%matplotlib widget
 import matplotlib.pyplot as plt 
 from matplotlib import colors
 import numpy as np 
@@ -7,9 +5,9 @@ from numpy.typing import NDArray
 from typing import List, Tuple, AnyStr
 from scipy.sparse.linalg import spsolve
 
-from utils.structures import * 
-from utils.solver import * 
-from utils.volumes import * 
+from solidspy_opt.utils.structures import * 
+from solidspy_opt.utils.solver import * 
+from solidspy_opt.utils.volumes import * 
 
 import solidspy.assemutil as ass 
 import solidspy.postprocesor as pos 
@@ -124,7 +122,7 @@ def ESO_stress(
     elsI = np.copy(els)
 
     # System assembly
-    assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+    assem_op, IBC, neq = ass.node2dof(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
     stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
     rhs_vec = ass.loadasem(loads, IBC, neq)
 
@@ -149,7 +147,7 @@ def ESO_stress(
         ELS = els
         
         # System assembly
-        assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+        assem_op, IBC, neq = ass.node2dof(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
         stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
         rhs_vec = ass.loadasem(loads, IBC, neq)
 
@@ -293,7 +291,7 @@ def ESO_stiff(
     elsI= np.copy(els)
 
     # System assembly
-    assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+    assem_op, IBC, neq = ass.node2dof(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
     stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
     rhs_vec = ass.loadasem(loads, IBC, neq)
 
@@ -318,7 +316,7 @@ def ESO_stiff(
         ELS = els
         
         # System assembly
-        assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+        assem_op, IBC, neq = ass.node2dof(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
         stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
         rhs_vec = ass.loadasem(loads, IBC, neq)
 
@@ -464,7 +462,7 @@ def BESO(
     elsI = np.copy(els)
 
     # System assembly
-    assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+    assem_op, IBC, neq = ass.node2dof(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
     stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
     rhs_vec = ass.loadasem(loads, IBC, neq)
 
@@ -475,7 +473,6 @@ def BESO(
 
     r_min = np.linalg.norm(nodes[0,1:-dim_problem] - nodes[1,1:-dim_problem]) * 1 # Radius for the sensitivity filter
     adj_nodes = adjacency_nodes(nodes, els, nnodes) # Adjacency nodes
-    # centers = center_els(nodes, els) # Centers of elements
     centers = calculate_element_centers(nodes, els, dim_problem, nnodes)
 
     V = calculate_mesh_volume(nodes, els) if dim_problem==3 else calculate_mesh_area(nodes, els)
@@ -503,7 +500,7 @@ def BESO(
         ELS = els_del 
 
         # System assembly
-        assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els_del, ndof_el_max=nnodes*dim_problem)
+        assem_op, IBC, neq = ass.node2dof(nodes[:, -dim_problem:], els_del, ndof_el_max=nnodes*dim_problem)
         stiff_mat, _ = ass.assembler(els_del, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
         rhs_vec = ass.loadasem(loads, IBC, neq)
 
@@ -669,7 +666,7 @@ def SIMP(
     elsI = np.copy(els)
 
     # System assembly
-    assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+    assem_op, IBC, neq = ass.node2dof(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
     stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
     rhs_vec = ass.loadasem(loads, IBC, neq)
 
@@ -707,7 +704,7 @@ def SIMP(
         mats[:,2] = Emin+rho**penal*(Emax-Emin)
 
         # System assembly
-        assem_op, IBC, neq = ass.DME(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
+        assem_op, IBC, neq = ass.node2dof(nodes[:, -dim_problem:], els, ndof_el_max=nnodes*dim_problem)
         # stiff_mat, _ = ass.assembler(els, mats, nodes[:, :-dim_problem], neq, assem_op, uel=uel_func)
         stiff_mat = sparse_assem(els, nodes, mats, neq, assem_op, dim_problem, uel=uel_func)
         rhs_vec = ass.loadasem(loads, IBC, neq)
