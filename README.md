@@ -3,136 +3,123 @@
 | ![Animation 1](assets/anim1.gif) | ![Animation 2](assets/anim2.gif) |
 |----------------------------------|----------------------------------|
 
-![Wrench under bending](https://raw.githubusercontent.com/AppliedMechanics-EAFIT/SolidsPy/master/docs/img/wrench.png)
+[![PyPI version](https://img.shields.io/pypi/v/solidspy.svg)](https://pypi.python.org/pypi/solidspy-opt)
+[![Documentation Status](https://readthedocs.org/projects/solidspy-opt/badge/?version=latest)](https://solidspy-opt.readthedocs.io/en/latest/)
+[![Downloads frequency](https://img.shields.io/pypi/dm/solidspy)](https://pypistats.org/packages/solidspy-opt)
 
-[![PyPI version](https://img.shields.io/pypi/v/solidspy.svg)](https://pypi.python.org/pypi/continuum_mechanics)
-[![Documentation Status](https://readthedocs.org/projects/solidspy/badge/?version=latest)](https://solidspy.readthedocs.io/en/latest/)
-[![Downloads frequency](https://img.shields.io/pypi/dm/solidspy)](https://pypistats.org/packages/solidspy)
-[![DOI](https://zenodo.org/badge/48294591.svg)](https://zenodo.org/badge/latestdoi/48294591)
+A simple topology optimization code for 2D/3D elasticity problems. **SolidsPy-Opt** uses as input easy-to-create text files (or Python data structures) defining a model in terms of nodal, element, material, and load data. It extends or modifies functionality from the original [SolidsPy](https://github.com/AppliedMechanics-EAFIT/SolidsPy) to support topology optimization workflows.
 
-A simple finite element analysis code for 2D/3D elasticity problems, written in Python. The code uses easily created text files defining a model in terms of nodal, element, material, and load data.
-
-- **Documentation**: http://solidspy.readthedocs.io
-- **GitHub**: https://github.com/AppliedMechanics-EAFIT/SolidsPy
-- **PyPI**: https://pypi.org/project/solidspy/
-- **License**: [MIT license](http://en.wikipedia.org/wiki/MIT_License)
-- **Year**: 2025
+- Documentation: http://solidspy-opt.readthedocs.io
+- GitHub: https://github.com/AppliedMechanics-EAFIT/SolidsPy-Opt
+- PyPI: https://pypi.org/project/solidspy-opt/
+- Free and open source software: [MIT license](http://en.wikipedia.org/wiki/MIT_License)
 
 ## Features
 
-* **Open-Source Environment**: Entirely written in Python, leveraging popular libraries like NumPy and SciPy.
-
-* **Easy to Use**: Simple text input files; minimal overhead to set up new simulations.
-
-* **2D/3D Elasticity**: Solve displacement, strain, and stress for arbitrary 2D/3D domains using finite elements.
-
-* **Modular Code**: Independent modules for pre-processing, assembly, and post-processing. Extend or modify as needed.
-
-* **Academic & Research**: Ideal for teaching courses such as:
+* Built upon an open-source Python ecosystem.
+* Easy to use and modify for **topology optimization** tasks.
+* Extends SolidsPy features to include optimization of material layout (topology optimization).
+* Created with academic and research goals in mind.
+* Can be used to teach or illustrate:
   - Computational Modeling
-  - Introduction to the Finite Element Methods
-  
-  and for rapid prototyping of new FEM elements.
-
-* **Wide Compatibility**: Tested under Windows, macOS, Linux, and even Android (via Termux).
+  - Topology Optimization
+  - Other advanced engineering topics
 
 ## Installation
 
-SolidsPy runs on Python 3.11+ and depends on numpy and scipy.
+The code is written in Python, depending on `numpy`, `scipy`, and `SolidsPy`. It has been tested under Windows, Mac and Linux.
 
-Install via PyPI:
+To install *SolidsPy-Opt*, open a terminal and type:
+
 ```bash
-pip install solidspy
+pip install solidspy-opt
 ```
 
-For a GUI file selector, install:
-```bash
-pip install easygui
-```
+For generating mesh files from [Gmsh](http://gmsh.info/), install [meshio](https://github.com/nschloe/meshio):
 
-To convert Gmsh models ([gmsh.info](http://gmsh.info/)) to SolidsPy input files, install:
 ```bash
 pip install meshio
 ```
 
-Install via Conda:
-```bash
-conda install solidspy
-```
-
 ## How to run a simple model
 
-For further explanation check the [docs](http://solidspy.readthedocs.io/en/latest/).
+Below is a minimal example showing how you might set up and run a 2D topology optimization analysis in *SolidsPy-Opt*.
 
-Let's suppose that we have a simple model represented by the following files (see [tutorials/square example](http://solidspy.readthedocs.io/en/latest/tutorials/square_example.html) for further explanation).
-
-- nodes.txt
-```
-0  0.00  0.00   0  -1
-1  2.00  0.00   0  -1
-2  2.00  2.00   0   0
-3  0.00  2.00   0   0
-4  1.00  0.00  -1  -1
-5  2.00  1.00   0   0
-6  1.00  2.00   0   0
-7  0.00  1.00   0   0
-8  1.00  1.00   0   0
-```
-
-- eles.txt
-```
-0   1   0   0   4   8   7
-1   1   0   4   1   5   8
-2   1   0   7   8   6   3
-3   1   0   8   5   2   6
-```
-
-- mater.txt
-```
-1.0  0.3
-```
-
-- loads.txt
-```
-3  0.0  1.0
-6  0.0  2.0
-2  0.0  1.0
-```
-
-Run it in Python as follows:
 ```python
-import matplotlib.pyplot as plt  # load matplotlib
-from solidspy import solids_GUI  # import our package
-disp = solids_GUI()  # run the Finite Element Analysis
-plt.show()    # plot contours
+import numpy as np
+import matplotlib.pyplot as plt
+
+from solidspy_opt.optimize import ESO_stress
+from solidspy_opt.utils import structure_3d, structures
+
+# Define the load directions and positions on the top face
+load_directions_3d = np.array([
+    [0, 1, 0],    # Load in the Y direction
+    [1, 0, 0],    # Load in the X direction
+    [0, 0, -1]    # Load in the negative Z direction
+])
+load_positions_3d = np.array([
+    [5, 5, 9],    # Position near the center of the top face
+    [1, 1, 9],    # Position near one corner of the top face
+    [8, 8, 9]     # Position near another corner of the top face
+])
+
+# Generate the nodes, materials, elements, loads, and BC indexes
+nodes_3d, mats_3d, els_3d, loads_3d, idx_BC_3d = structure_3d(
+    L=10,       # length in X
+    H=10,       # length in Y
+    W=10,       # length in Z
+    E=206.8e9,  # Young's modulus
+    v=0.28,     # Poisson's ratio
+    nx=10,      # number of divisions in X
+    ny=10,      # number of divisions in Y
+    nz=10,      # number of divisions in Z
+    dirs=load_directions_3d,
+    positions=load_positions_3d
+)
+
+# Run the ESO optimization
+els_opt_3d, nodes_opt_3d, UC_3d, E_nodes_3d, S_nodes_3d = ESO_stress(
+    nodes=nodes_3d,
+    els=els_3d,
+    mats=mats_3d,
+    loads=loads_3d,
+    idx_BC=idx_BC_3d,
+    niter=200,
+    RR=0.005,      # Initial removal ratio
+    ER=0.05,       # Removal ratio increment
+    volfrac=0.5,   # Target volume fraction
+    plot=True,     # Whether to plot with solidspy's 3D plot function
+    dim_problem=3,
+    nnodes=8       # 8-node hexahedron
+)
 ```
 
-For Mac users it is suggested to use an IPython console to run the example.
+Save the script (for example, as `example_solidspy_opt.py`) and run it:
+
+```bash
+python example_solidspy_opt.py
+```
 
 ## License
 
-This project is licensed under the [MIT license](http://en.wikipedia.org/wiki/MIT_License). The documents are licensed under [Creative Commons Attribution License](http://creativecommons.org/licenses/by/4.0/).
+This project is licensed under the [MIT license](http://en.wikipedia.org/wiki/MIT_License). All documentation is licensed under the [Creative Commons Attribution License](http://creativecommons.org/licenses/by/4.0/).
 
 ## Citation
 
-To cite SolidsPy in publications use:
-
-> Nicolás Guarín-Zapata, Juan Gomez (2025). SolidsPy: Version 2.0.0 (Version v2.0.0). Zenodo. http://doi.org/10.5281/zenodo.4029270
-
-A BibTeX entry for LaTeX users is:
+If you use **SolidsPy-Opt** in your research or publications, please cite it. A BibTeX entry for LaTeX users might look like:
 
 ```bibtex
-@software{solidspy,
- title = {SolidsPy: 2D/3D-Finite Element Analysis with Python},
- version = {2.0.0},
- author = {Guarín-Zapata, Nicolás and Gómez, Juan},
- year = 2020,
- keywords = {Python, Finite elements, Scientific computing, Computational mechanics},
- abstract = {SolidsPy is a simple finite element analysis code for
-   2D/3D elasticity problems. The code uses as input simple-to-create text
-   files defining a model in terms of nodal, element, material and
-   load data.},
- url = {https://github.com/AppliedMechanics-EAFIT/SolidsPy},
- doi = {http://doi.org/10.5281/zenodo.4029270}
+@software{solidspy_opt,
+  title     = {SolidsPy-Opt: 2D/3D-Finite Element and Topology Optimization Analysis with Python},
+  author    = {Sepúlveda-García, Kevin and Guarin-Zapata, Nicolas},
+  year      = 2025,
+  version   = {0.1.0},
+  keywords  = {finite-elements, scientific-computing, deep learning, topology, optimization},
+  license   = {MIT License},
+  url       = {https://github.com/AppliedMechanics-EAFIT/SolidsPy-Opt},
+  abstract  = {SolidsPy-Opt is a Python package designed to perform
+               topology optimization of 2D/3D solids by leveraging SolidsPy
+               finite-element package and advanced computational tools.}
 }
 ```

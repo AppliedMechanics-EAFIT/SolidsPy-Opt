@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to SolidsPy's documentation!
+Welcome to SolidsPy-Opt's documentation!
 ====================================
 
 .. toctree::
@@ -14,12 +14,10 @@ Welcome to SolidsPy's documentation!
    tutorial
    installation
    usage
-   advanced
    contributing
    authors
    modules
    history
-
 
 
 Indices and tables

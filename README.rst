@@ -1,12 +1,16 @@
-SolidsPy-Opt: 2D Topology Optimization with Python
-==================================================
-.. image:: assets/anim1.gif
-   :alt: Texto alternativo (opcional)
-   :width: 500px (opcional)
-   :align: center (opcional)
+SolidsPy: 2D/3D-Finite Element Analysis with Python
+===================================================
 
-.. figure:: https://raw.githubusercontent.com/AppliedMechanics-EAFIT/SolidsPy/master/docs/img/wrench.png
-   :alt: Wrench under bending.
+.. list-table::
+   :header-rows: 0
+   :widths: 50 50
+
+   * - .. image:: assets/anim1.gif
+          :alt: Animation 1
+          :width: 300px
+     - .. image:: assets/anim2.gif
+          :alt: Animation 2
+          :width: 300px
 
 .. image:: https://img.shields.io/pypi/v/solidspy.svg
    :target: https://pypi.python.org/pypi/solidspy-opt
@@ -20,8 +24,8 @@ SolidsPy-Opt: 2D Topology Optimization with Python
    :target: https://pypistats.org/packages/solidspy-opt
    :alt: Downloads frequency
 
-A simple finite element analysis (FEA) and topology optimization code for
-2D elasticity problems. **SolidsPy-Opt** uses as input easy-to-create text
+A simple opology optimization code for
+2D/3D elasticity problems. **SolidsPy-Opt** uses as input easy-to-create text
 files (or Python data structures) defining a model in terms of nodal,
 element, material, and load data. It extends or modifies functionality
 from the original `SolidsPy <https://github.com/AppliedMechanics-EAFIT/SolidsPy>`__ 
@@ -40,20 +44,14 @@ Features
 
 * Easy to use and modify for **topology optimization** tasks.
 
-* Handles 2D elasticity, displacement, strain, and stress solutions, and 
-  extends these workflows to include optimization of material layout
+* Extends SolidsPy features to include optimization of material layout
   (topology optimization).
-
-* Organized in independent modules for pre-processing, assembly, optimization,
-  and post-processing, allowing the user to easily modify or add new 
-  features (e.g., new elements or custom optimization strategies).
 
 * Created with academic and research goals in mind.
 
 * Can be used to teach or illustrate:
   
   - Computational Modeling
-  - Finite Element Methods
   - Topology Optimization
   - Other advanced engineering topics
 
@@ -62,22 +60,13 @@ Installation
 ------------
 
 The code is written in Python, depending on ``numpy``, ``scipy``, and
-``sympy`` (and possibly other libraries if your optimization approach
-requires them). It has been tested under Windows, Mac, Linux, and Android 
-environments.
+``SolidsPy``. It has been tested under Windows, Mac and Linux.
 
 To install *SolidsPy-Opt*, open a terminal and type:
 
 ::
 
     pip install solidspy-opt
-
-If you also need an interactive GUI for file selection, you can install
-`easygui <http://easygui.readthedocs.org/en/master/>`__:
-
-::
-
-    pip install easygui
 
 For generating mesh files from
 `Gmsh <http://gmsh.info/>`__, install
@@ -92,76 +81,57 @@ How to run a simple model
 -------------------------
 
 Below is a minimal example showing how you might set up and run a
-2D finite element + topology optimization analysis in *SolidsPy-Opt*.
-(Adapt it to your actual code structure and function names.)
+2D topology optimization analysis in *SolidsPy-Opt*.
 
 .. code:: python
 
     import numpy as np
     import matplotlib.pyplot as plt
-    # Hypothetical module import for SolidsPy-Opt:
-    from solidspy_opt.solids_GUI import solids_opt_auto
 
-    # Define the data (nodes, constraints, elements, materials, loads, etc.)
-    nodes = np.array([
-        [0, 0.00, 0.00],
-        [1, 2.00, 0.00],
-        [2, 2.00, 2.00],
-        [3, 0.00, 2.00],
-        [4, 1.00, 0.00],
-        [5, 2.00, 1.00],
-        [6, 1.00, 2.00],
-        [7, 0.00, 1.00],
-        [8, 1.00, 1.00]])
+    from solidspy_opt.optimize import ESO_stress
+    from solidspy_opt.utils import structure_3d, structures
 
-    cons = np.array([
-        [0, -1],
-        [0, -1],
-        [0,  0],
-        [0,  0],
-        [-1, -1],
-        [0,  0],
-        [0,  0],
-        [0,  0],
-        [0,  0]])
+    # Define the load directions and positions on the top face
+    load_directions_3d = np.array([
+        [0, 1, 0],    # Load in the Y direction
+        [1, 0, 0],    # Load in the X direction
+        [0, 0, -1]    # Load in the negative Z direction
+    ])
+    load_positions_3d = np.array([
+        [5, 5, 9],    # Position near the center of the top face
+        [1, 1, 9],    # Position near one corner of the top face
+        [8, 8, 9]     # Position near another corner of the top face
+    ])
 
-    elements = np.array([
-        [0, 1, 0, 0, 4, 8, 7],
-        [1, 1, 0, 4, 1, 5, 8],
-        [2, 1, 0, 7, 8, 6, 3],
-        [3, 1, 0, 8, 5, 2, 6]])
+    # Generate the nodes, materials, elements, loads, and BC indexes
+    nodes_3d, mats_3d, els_3d, loads_3d, idx_BC_3d = structure_3d(
+        L=10,       # length in X
+        H=10,       # length in Y
+        W=10,       # length in Z
+        E=206.8e9,  # Young's modulus
+        v=0.28,     # Poisson's ratio
+        nx=10,      # number of divisions in X
+        ny=10,      # number of divisions in Y
+        nz=10,      # number of divisions in Z
+        dirs=load_directions_3d,
+        positions=load_positions_3d
+    )
 
-    mats = np.array([[1.0, 0.3]])
-
-    loads = np.array([
-        [2, 0.0, 1.0],
-        [3, 0.0, 1.0],
-        [6, 0.0, 2.0]])
-
-    data = {
-        "nodes": nodes,
-        "cons": cons,
-        "elements": elements,
-        "mats": mats,
-        "loads": loads
-        # Potentially additional data for optimization:
-        # "vol_frac": 0.5,
-        # "penal": 3.0,
-        # "filter_radius": 1.2,
-        # etc.
-    }
-
-    # Run the simulation + topology optimization
-    disp, topo_density = solids_opt_auto(data)
-
-    # Plot results
-    plt.figure()
-    # Hypothetical function that plots the density distribution
-    plt.imshow(topo_density.reshape(2,2))  
-    plt.title("Topology Density")
-    plt.colorbar()
-    plt.show()
-
+    # Run the ESO optimization
+    els_opt_3d, nodes_opt_3d, UC_3d, E_nodes_3d, S_nodes_3d = ESO_stress(
+        nodes=nodes_3d,
+        els=els_3d,
+        mats=mats_3d,
+        loads=loads_3d,
+        idx_BC=idx_BC_3d,
+        niter=200,
+        RR=0.005,      # Initial removal ratio
+        ER=0.05,       # Removal ratio increment
+        volfrac=0.5,   # Target volume fraction
+        plot=True,     # Whether to plot with solidspy's 3D plot function
+        dim_problem=3,
+        nnodes=8       # 8-node hexahedron
+    )
 
 Save the script (for example, as ``example_solidspy_opt.py``) and run it:
 
@@ -188,14 +158,14 @@ A BibTeX entry for LaTeX users might look like:
 .. code:: bibtex
 
     @software{solidspy_opt,
-      title     = {SolidsPy-Opt: 2D-Finite Element and Topology Optimization Analysis with Python},
+      title     = {SolidsPy-Opt: 2D/3D-Finite Element and Topology Optimization Analysis with Python},
       author    = {Sepúlveda-García, Kevin and Guarin-Zapata, Nicolas},
-      year      = 2024,
+      year      = 2025,
       version   = {0.1.0},
       keywords  = {finite-elements, scientific-computing, deep learning, topology, optimization},
       license   = {MIT License},
       url       = {https://github.com/AppliedMechanics-EAFIT/SolidsPy-Opt},
       abstract  = {SolidsPy-Opt is a Python package designed to perform
-                   topology optimization of 2D solids by leveraging
-                   finite-element methods and advanced computational tools.}
+                   topology optimization of 2D/3D solids by leveraging SolidsPy
+                   finite-element package and advanced computational tools.}
     }
